@@ -2,7 +2,8 @@ import { useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import { readFileAsBase64 } from '../components/readFile';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { useConfirm } from '../components/ConfirmSheet';
 import { C, Card, Heading, Input, Message, Secondary } from './ui';
 
 const formatSize = (bytes) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
@@ -22,6 +23,7 @@ export default function StudentCompletion({ api, id, item, onChanged }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const { confirm, sheet } = useConfirm();
 
   const run = async (task, message) => {
     setError(''); setNotice(''); setBusy(true);
@@ -33,7 +35,7 @@ export default function StudentCompletion({ api, id, item, onChanged }) {
     const file = await pickFile(['image/png', 'image/jpeg', 'application/pdf']);
     return file ? api.request(`/students/${id}/idcard`, file, 'PUT') : null;
   }, 'ID card uploaded. The student has been notified.');
-  const removeIdCard = () => Alert.alert('Remove ID card?', 'The student will no longer see it.', [{ text: 'Cancel' }, { text: 'Remove', style: 'destructive', onPress: () => run(() => api.request(`/students/${id}/idcard`, {}, 'DELETE'), 'ID card removed.') }]);
+  const removeIdCard = () => confirm({ tone: 'danger', icon: 'trash-outline', title: 'Remove ID card?', message: 'The student will no longer see it. You can upload a new one at any time.', actions: [{ label: 'Remove ID card', variant: 'danger', onPress: () => run(() => api.request(`/students/${id}/idcard`, {}, 'DELETE'), 'ID card removed.') }] });
   const uploadDocument = () => {
     if (!title.trim()) { setError('Give the document a title first.'); return; }
     return run(async () => {
@@ -44,7 +46,7 @@ export default function StudentCompletion({ api, id, item, onChanged }) {
       return result;
     }, 'Document uploaded. The student has been notified.');
   };
-  const removeDocument = (document) => Alert.alert('Remove document?', document.title, [{ text: 'Cancel' }, { text: 'Remove', style: 'destructive', onPress: () => run(() => api.request(`/students/${id}/documents/${document.id}`, {}, 'DELETE'), 'Document removed.') }]);
+  const removeDocument = (document) => confirm({ tone: 'danger', icon: 'document-text-outline', title: 'Remove document?', message: `“${document.title}” will no longer be visible to the student.`, actions: [{ label: 'Remove document', variant: 'danger', onPress: () => run(() => api.request(`/students/${id}/documents/${document.id}`, {}, 'DELETE'), 'Document removed.') }] });
 
   return (
     <>
@@ -80,6 +82,7 @@ export default function StudentCompletion({ api, id, item, onChanged }) {
           <Secondary title="Choose File & Upload" icon="cloud-upload-outline" onPress={busy ? undefined : uploadDocument} />
         </View>
       </Card>
+      {sheet}
     </>
   );
 }

@@ -22,12 +22,59 @@ function valueOf(cell) {
   return clean(value);
 }
 
+// Some tools (Open XML SDK exports, some online editors) write valid .xlsx files with prefixed tags such as
+// <x:workbook>, which the reader does not recognise. Rewrite those parts to the plain form so they load normally.
+async function withPlainXmlNamespaces(buffer) {
+  const JSZip = require('jszip');
+  const zip = await JSZip.loadAsync(buffer);
+  let changed = false;
+  for (const name of Object.keys(zip.files)) {
+    if (zip.files[name].dir || !/^xl\/.*\.xml$/i.test(name)) continue;
+    let xml = await zip.file(name).async('string');
+    const root = /^(?:﻿)?(?:<\?xml[^>]*\?>\s*)?<([A-Za-z_][\w.-]*):[\w.-]+\b[^>]*?\sxmlns:\1="http:\/\/schemas\.openxmlformats\.org\/spreadsheetml\/2006\/main"/.exec(xml);
+    if (!root) continue;
+    const prefix = root[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    xml = xml.replace(new RegExp(`<(/?)${prefix}:`, 'g'), '<$1').replace(new RegExp(`xmlns:${prefix}=`, 'g'), 'xmlns=');
+    zip.file(name, xml);
+    changed = true;
+  }
+  return changed ? zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }) : buffer;
+}
+
 async function spreadsheetRows(filename, base64) {
   const buffer = Buffer.from(clean(base64), 'base64');
   if (!buffer.length || buffer.length > 10 * 1024 * 1024) throw new Error('Select a spreadsheet under 10MB.');
   const workbook = new ExcelJS.Workbook();
   let sheet;
-  if (/\.xlsx$/i.test(filename)) { await workbook.xlsx.load(buffer); sheet = workbook.worksheets[0]; }
+  if (/\.xlsx$/i.test(filename)) {
+    try {
+      // 1) the main reader, 2) the same after rewriting prefixed tags, 3) a forgiving reader for unusual exports.
+      try {
+        try { await workbook.xlsx.load(buffer); }
+        catch (firstError) { await workbook.xlsx.load(await withPlainXmlNamespaces(buffer)); }
+        sheet = workbook.worksheets[0];
+        if (!sheet) throw new Error('no worksheet');
+      } catch (mainError) {
+        sheet = await require('./xlsxFallback').readSheetLoosely(buffer);
+      }
+    } catch (error) {
+      // Record what the file looks like inside (names only, no cell data) so an unusual export can be diagnosed.
+      try {
+        const zip = await require('jszip').loadAsync(buffer);
+        const lines = [`Spreadsheet could not be read (${error.message}).`, `at: ${String(error.stack).split('\n').slice(1, 4).map((line) => line.trim().replace(/\(.*node_modules[\\/]/, '(')).join(' | ')}`, `Entries: ${Object.keys(zip.files).slice(0, 30).join(', ')}`];
+        for (const part of ['[Content_Types].xml', '_rels/.rels', 'xl/_rels/workbook.xml.rels', 'xl/workbook.xml', 'xl/worksheets/_rels/sheet1.xml.rels', 'xl/tables/table1.xml', 'xl/worksheets/sheet1.xml', 'xl/sharedStrings.xml']) {
+          const entry = zip.file(part);
+          if (!entry) continue;
+          // Structure only: cut before any cell / string data.
+          const text = (await entry.async('string')).split(/<(?:x:)?(?:sheetData|si)[\s>]/)[0].slice(0, 700);
+          lines.push(`--- ${part}: ${text}`);
+        }
+        console.error(lines.join('\n'));
+      } catch { console.error(`Spreadsheet could not be read and is not a valid .xlsx zip (${error.message}); ${buffer.length} bytes, first bytes: ${buffer.subarray(0, 8).toString('hex')}`); }
+      if (/empty/.test(error.message)) throw error;
+      throw new Error('This spreadsheet could not be read. Open it in Excel or Google Sheets, save it as .xlsx (or .csv) again, and re-upload.');
+    }
+  }
   else if (/\.csv$/i.test(filename)) sheet = await workbook.csv.read(Readable.from([buffer]));
   else throw new Error('Select a .xlsx or .csv spreadsheet.');
   if (!sheet) throw new Error('The spreadsheet is empty.');
@@ -43,8 +90,18 @@ async function spreadsheetRows(filename, base64) {
   return rows;
 }
 
+// Reserved / placeholder domains (RFC 2606) that can never receive email.
+const undeliverable = (address) => /(^|\.)(example\.(com|org|net)|example|test|invalid|localhost)$/i.test(String(address || '').split('@')[1] || '');
+const PLACEHOLDER_EMAIL_MESSAGE = 'This is a placeholder address (example.com) and cannot receive email. Update the contact, then resend.';
+
 function createHandler({ data, save, send, readJson, files }) {
   for (const field of ['students', 'staff', 'imports', 'audit', 'tuition']) data[field] ||= [];
+  // Earlier versions marked placeholder addresses as "delivered". Correct that so they can be fixed and resent.
+  let corrected = false;
+  for (const item of [...data.students, ...data.staff]) {
+    if (item.deliveryStatus === 'delivered' && undeliverable(item.email)) { item.deliveryStatus = 'failed'; item.deliveryError = PLACEHOLDER_EMAIL_MESSAGE; delete item.deliveredAt; corrected = true; }
+  }
+  if (corrected) save();
   const now = () => new Date().toISOString();
   const audit = (user, action, target, detail = '') => data.audit.unshift({ id: crypto.randomUUID(), institutionId: user.id, actor: user.name, action, target, detail, at: now() });
   const notifyStudent = (student, type, title, body) => { data.notifications ||= []; data.notifications.unshift({ id: crypto.randomUUID(), studentId: student.id, type, title, body, read: false, createdAt: now() }); };
@@ -309,12 +366,34 @@ function createHandler({ data, save, send, readJson, files }) {
       if ((!process.env.SMTP_HOST || !process.env.SMTP_FROM) && (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD)) { send(res, 503, { error: 'Email delivery is not configured. Approved IDs remain pending; configure SMTP to send them.' }); return true; }
       const results = [];
       for (const item of selected.slice(0, 100)) {
+        // Placeholder addresses such as name@example.com can never receive mail, so say so instead of "delivering".
+        if (undeliverable(item.email)) { item.deliveryStatus = 'failed'; item.deliveryError = PLACEHOLDER_EMAIL_MESSAGE; results.push({ id: item.id, status: 'failed' }); continue; }
         try {
-          await sendAccessIdEmail(item.email, item.name, kind === 'student' ? item.clearanceId : item.accessId, kind, user.institutionName);
-          item.deliveryStatus = 'delivered'; item.deliveredAt = now(); results.push({ id: item.id, status: 'delivered' });
-        } catch { item.deliveryStatus = 'failed'; results.push({ id: item.id, status: 'failed' }); }
+          const info = await sendAccessIdEmail(item.email, item.name, kind === 'student' ? item.clearanceId : item.accessId, kind, user.institutionName);
+          if (info?.rejected?.length) throw new Error('The email provider rejected this address.');
+          item.deliveryStatus = 'delivered'; item.deliveredAt = now(); delete item.deliveryError; results.push({ id: item.id, status: 'delivered' });
+        } catch (cause) { item.deliveryStatus = 'failed'; item.deliveryError = 'The email could not be sent to this address. Check it and resend.'; console.error(`Access ID email to ${item.email} failed: ${cause.message}`); results.push({ id: item.id, status: 'failed' }); }
       }
       audit(user, `${kind} access IDs sent`, `${results.filter((item) => item.status === 'delivered').length} delivered`); save(); send(res, 200, { results, remaining: Math.max(0, selected.length - results.length) }); return true;
+    }
+    // Sends (or re-sends) one person's ID straight away, even if it was delivered before, and reports the real outcome.
+    if (kind && id && action === 'resend' && req.method === 'POST') {
+      const item = own(list, user, id);
+      if (!item) { send(res, 404, { error: 'Record not found.' }); return true; }
+      if (!item.email) { send(res, 400, { error: 'Add an email address first, then save the contact.' }); return true; }
+      if (undeliverable(item.email)) { send(res, 400, { error: PLACEHOLDER_EMAIL_MESSAGE }); return true; }
+      if ((!process.env.SMTP_HOST || !process.env.SMTP_FROM) && (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD)) { send(res, 503, { error: 'Email delivery is not configured.' }); return true; }
+      try {
+        const info = await sendAccessIdEmail(item.email, item.name, kind === 'student' ? item.clearanceId : item.accessId, kind, user.institutionName);
+        if (info?.rejected?.length) throw new Error('rejected');
+        item.approved = true; item.status = kind === 'staff' ? 'active' : 'ready';
+        item.deliveryStatus = 'delivered'; item.deliveredAt = now(); delete item.deliveryError;
+        audit(user, `${kind} access ID resent`, item.name); save(); send(res, 200, { item, sentTo: item.email }); return true;
+      } catch (cause) {
+        item.deliveryStatus = 'failed'; item.deliveryError = 'The email could not be sent to this address. Check it and resend.'; save();
+        console.error(`Access ID email to ${item.email} failed: ${cause.message}`);
+        send(res, 502, { error: 'The email could not be sent to that address. Check it and try again.' }); return true;
+      }
     }
     if (kind && id && req.method === 'GET') {
       const item = own(list, user, id); send(res, item ? 200 : 404, item ? { item } : { error: 'Record not found.' }); return true;
@@ -325,8 +404,11 @@ function createHandler({ data, save, send, readJson, files }) {
       const input = await readJson(req);
       const fields = kind === 'student' ? ['name', 'email', 'phone', 'faculty', 'department', 'programme', 'entryLevel', 'level', 'admissionYear', 'admissionStatus', 'matricNo', 'tuitionStatus', 'disabled'] : ['name', 'email', 'phone', 'faculty', 'department', 'jobTitle', 'disabled'];
       const matricBefore = item.matricNo;
+      const emailBefore = item.email;
       for (const field of fields) if (Object.hasOwn(input, field)) item[field] = field === 'disabled' ? Boolean(input[field]) : clean(input[field]);
       if (item.email) item.email = email(item.email);
+      // A changed address means the previous delivery no longer counts; the ID is due to be sent again.
+      if (Object.hasOwn(input, 'email') && item.email !== emailBefore && item.deliveryStatus) { item.deliveryStatus = 'pending'; delete item.deliveryError; delete item.deliveredAt; }
       // The matric number is added to the existing student account; the student is told when it is assigned.
       if (kind === 'student' && item.matricNo && item.matricNo !== matricBefore) { notifyStudent(item, 'matric', 'Matric number assigned', `Your matriculation number is ${item.matricNo}.`); audit(user, 'Matric number assigned', item.name, item.matricNo); }
       audit(user, kind === 'student' ? 'Student updated' : 'Staff updated', item.name); save(); send(res, 200, { item }); return true;

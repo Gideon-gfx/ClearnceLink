@@ -251,7 +251,7 @@ function renderEmail(content, options = {}) {
     ...(content.code ? [`${content.codeCaption || 'Your code'}: ${content.code}`, ''] : []),
     ...(content.callout ? [content.callout, ''] : []),
     ...sections.flatMap((section) => [section.title.toUpperCase(), ...(section.paragraphs || []), ...(section.list || []).map((item, index) => (section.ordered ? `  ${index + 1}. ${item}` : `  - ${item}`)), '']),
-    content.closing, '', 'Warm regards,', 'The ClearanceLink team', 'ClearanceLink | Your Institution. One Platform.',
+    content.closing, '', 'Warm regards,', content.signoff || 'The ClearanceLink team', ...(content.signoffNote ? [content.signoffNote] : []), 'ClearanceLink | Your Institution. One Platform.',
   ].filter((line) => line !== undefined && line !== null).join('\n');
 
   const codeBlock = content.code
@@ -279,7 +279,7 @@ function renderEmail(content, options = {}) {
     + codeBlock + calloutBlock
     + sections.map(renderSection).join('')
     + (content.closing ? `<tr><td style="padding:26px 0 4px;font:400 15px/1.75 ${FONT};color:${C.body}">${escapeHtml(content.closing)}</td></tr>` : '')
-    + `<tr><td style="padding:18px 0 0;font:400 15px/1.7 ${FONT};color:${C.body}">Warm regards,<br><strong style="color:${C.ink}">The ClearanceLink team</strong></td></tr>`
+    + `<tr><td style="padding:18px 0 0;font:400 15px/1.7 ${FONT};color:${C.body}">Warm regards,<br><strong style="color:${C.ink}">${escapeHtml(content.signoff || 'The ClearanceLink team')}</strong>${content.signoffNote ? `<br><span style="font-size:13px;color:${C.muted}">${escapeHtml(content.signoffNote)}</span>` : ''}</td></tr>`
     + `</table></td></tr>`
     // footer
     + `<tr><td align="center" style="background:${C.deep};border-radius:0 0 20px 20px;padding:24px 30px">`
@@ -296,7 +296,7 @@ async function deliver(to, content) {
   if (!mail) throw new Error('Email delivery is not configured.');
   const { text, html } = renderEmail(content, { to });
   const attachments = fs.existsSync(LOGO_PATH) ? [{ filename: 'clearancelink-logo.png', path: LOGO_PATH, cid: LOGO_CID, contentDisposition: 'inline' }] : [];
-  await mail.sendMail({ from: process.env.SMTP_FROM || `"ClearanceLink" <${process.env.GMAIL_USER}>`, to, subject: content.subject, text, html, attachments });
+  return mail.sendMail({ from: process.env.SMTP_FROM || `"ClearanceLink" <${process.env.GMAIL_USER}>`, to, subject: content.subject, text, html, attachments });
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -307,29 +307,56 @@ async function deliver(to, content) {
 async function sendAccessIdEmail(to, name, code, kind, institutionName) {
   const student = kind === 'student';
   const label = student ? 'Clearance ID' : 'Staff Access ID';
-  await deliver(to, {
-    subject: `${institutionName}: your ${label}`,
-    title: `Your ${label}`,
-    preheader: `${institutionName} has set you up on ClearanceLink. Your ${label} is inside.`,
-    greeting: `Hello ${firstName(name)},`,
-    paragraphs: [
-      `${institutionName} has registered you on ClearanceLink${student ? ', the app used to complete your clearance' : ', the app used to review student clearance submissions'}. Use the ID below to activate your account.`,
-    ],
+  // Written in the institution's voice: it is the institution that is sending this to its own student / staff member.
+  return deliver(to, {
+    subject: student ? `${institutionName}: your Clearance ID and how to get started` : `${institutionName}: your Staff Access ID and how to get started`,
+    title: student ? 'Your Clearance ID is ready' : 'Your Staff Access ID is ready',
+    preheader: student ? `${institutionName} has set up your clearance. Your personal Clearance ID is inside.` : `${institutionName} has added you to its clearance team. Your personal Staff Access ID is inside.`,
+    greeting: `Dear ${firstName(name)},`,
+    paragraphs: student
+      ? [
+        `Congratulations on your admission to ${institutionName}. To complete your clearance, we have set you up on ClearanceLink, the app where you will submit your documents and follow your progress from your phone.`,
+        'Your personal Clearance ID is below. You will use it once, to activate your account.',
+      ]
+      : [
+        `Welcome to the ${institutionName} team. We have added you to ClearanceLink, the app our staff use to review student clearance submissions.`,
+        'Your personal Staff Access ID is below. You will use it once, to activate your account.',
+      ],
     code,
     codeCaption: label,
-    callout: `Keep this ID private. It is personal to you and is only used once, to activate your account.`,
-    sections: [{
-      title: 'How to activate your account',
-      ordered: true,
-      list: [
-        'Download and open the ClearanceLink app.',
-        `On the welcome screen, tap ${student ? 'Student' : 'Staff'}, then tap ${student ? 'Create student account' : 'Create staff account'}.`,
-        `Enter your ${label} exactly as shown above.`,
-        'We will send a 6-digit verification code to this email address. Enter it to confirm it is you.',
-        'Create a password. From then on you sign in with this email and your password.',
-      ],
-    }],
-    closing: `If you were not expecting this email, or the ID does not work, please contact ${institutionName}.`,
+    callout: 'Please keep this ID private. It belongs to you alone and is only needed once, to activate your account. Nobody at the institution will ever ask you to share it.',
+    sections: [
+      {
+        title: 'Activate your account in five steps',
+        ordered: true,
+        list: [
+          'Download and open the ClearanceLink app.',
+          `On the welcome screen, tap ${student ? 'Student' : 'Staff'}, then choose ${student ? 'Create student account' : 'Create staff account'}.`,
+          `Enter your ${label} exactly as shown above.`,
+          'We will email a 6-digit verification code to this address. Enter it to confirm it is you.',
+          'Create a password. From then on you sign in with this email address and your password.',
+        ],
+      },
+      {
+        title: 'What happens next',
+        list: student
+          ? [
+            'Your clearance appears on your home screen, with the requirements you need to complete.',
+            'Upload each document as it is asked for. You will be notified as soon as it is reviewed.',
+            'If a document needs correcting, you will see exactly why and can upload a new copy.',
+            'You will not need your Clearance ID again after activation.',
+          ]
+          : [
+            'Your institution administrator will assign you a clearance role and the scope you work in.',
+            'Once that is done, the students and documents waiting for your review appear on your home screen.',
+            'You will only ever see the work that has been assigned to you.',
+            'You will not need your Staff Access ID again after activation.',
+          ],
+      },
+    ],
+    closing: `If the ID does not work, or you were not expecting this email, please contact the ${institutionName} ${student ? 'clearance office' : 'administrator'} and we will help right away.`,
+    signoff: institutionName,
+    signoffNote: 'Sent through ClearanceLink',
   });
 }
 
