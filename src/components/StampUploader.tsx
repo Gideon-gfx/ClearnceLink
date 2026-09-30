@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native';
 import { apiBaseUrl } from '../api';
 import ErrorBanner from './ErrorBanner';
+import useAuthImage from './useAuthImage';
 
 const MAX_BYTES = 1.5 * 1024 * 1024;
 
@@ -24,6 +25,7 @@ export default function StampUploader({ basePath, token, title = 'Digital stamp 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const headers = { Authorization: `Bearer ${token}` };
+  const image = useAuthImage(stamp ? `${apiBaseUrl}${basePath}/stamp/image` : null, token, version);
 
   useEffect(() => {
     let live = true;
@@ -78,7 +80,7 @@ export default function StampUploader({ basePath, token, title = 'Digital stamp 
       </Text>
       <View style={{ height: 120, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#cfc6f2', backgroundColor: '#faf8ff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
         {stamp === undefined ? <ActivityIndicator color="#5a17c9" /> : stamp ? (
-          <Image key={version} source={{ uri: `${apiBaseUrl}${basePath}/stamp/image?v=${version}`, headers }} resizeMode="contain" style={{ width: '80%', height: '85%' }} />
+          image.uri ? <Image source={{ uri: image.uri }} resizeMode="contain" style={{ width: '80%', height: '85%' }} /> : image.failed ? <Text style={{ fontSize: 12, color: '#dc2626', textAlign: 'center', paddingHorizontal: 12 }}>Your stamp is saved, but the picture could not be loaded. Pull down to retry or replace it.</Text> : <ActivityIndicator color="#5a17c9" />
         ) : (
           <>
             <Ionicons name="image-outline" size={30} color="#b9a4f2" />

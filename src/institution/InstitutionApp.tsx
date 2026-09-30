@@ -20,20 +20,24 @@ import ReviewStaffIdsScreen from './reviewStaffIdsScreen';
 import StudentDetailScreen from './studentDetailScreen';
 import StaffDetailScreen from './staffDetailScreen';
 import AssignRoleScreen from './assignRoleScreen';
-import TuitionScreen from './tuitionScreen';
 import SettingsScreen from './settingsScreen';
 import StampScreen from './stampScreen';
+import PlansScreen from './plansScreen';
+import AssignedRolesScreen from './assignedRolesScreen';
 import CompletionScreen from './completionScreen';
 import ActivityScreen from './activityScreen';
 
 const mainTabs = ['home', 'students', 'staff', 'oversight', 'more'];
-export default function InstitutionApp({ session, onSignOut }) {
+export default function InstitutionApp({ session, onSignOut, onSessionChange = (user) => {} }) {
   const api = useMemo(() => institutionApi(session.token), [session.token]);
   const [stack, setStack] = useState([{ screen: 'home', params: {} }]);
   const [logoVersion, setLogoVersion] = useState(0);
   const [hasLogo, setHasLogo] = useState(Boolean(session.user.hasLogo));
   const logoUrl = hasLogo ? `${apiBaseUrl}/api/institution/logo?v=${logoVersion}` : null;
+  const [unread, setUnread] = useState(0);
   const current = stack[stack.length - 1];
+  // Refresh the bell's count whenever the admin moves between screens.
+  useEffect(() => { api.request('/notifications').then((result) => setUnread(result.unread || 0)).catch(() => {}); }, [api, stack.length, current.screen]);
   const go = (screen, params = {}) => setStack((items) => [...items, { screen, params }]);
   const back = () => setStack((items) => items.length > 1 ? items.slice(0, -1) : items);
   const tab = (screen) => setStack([{ screen, params: {} }]);
@@ -54,16 +58,17 @@ export default function InstitutionApp({ session, onSignOut }) {
     case 'review-staff-ids': body = <ReviewStaffIdsScreen api={api} onBack={back} onOpen={(id) => go('staff-detail', { id })} />; break;
     case 'student-detail': body = <StudentDetailScreen api={api} id={current.params.id} onBack={back} />; break;
     case 'staff-detail': body = <StaffDetailScreen api={api} id={current.params.id} onBack={back} onAssignRole={(staffId) => go('assign-role', { staffId })} />; break;
+    case 'assigned-roles': body = <AssignedRolesScreen api={api} onBack={back} onOpen={(id) => go('staff-detail', { id })} onAssign={() => go('assign-role')} />; break;
     case 'assign-role': body = <AssignRoleScreen api={api} staffId={current.params.staffId} onBack={back} onSaved={(id) => go('staff-detail', { id })} />; break;
-    case 'tuition': body = <TuitionScreen api={api} onBack={back} />; break;
+    case 'plans': body = <PlansScreen user={session.user} token={session.token} onChanged={onSessionChange} onBack={back} />; break;
     case 'settings': body = <SettingsScreen api={api} onBack={back} />; break;
     case 'stamp': body = <StampScreen token={session.token} onBack={back} />; break;
     case 'completion': body = <CompletionScreen api={api} onBack={back} />; break;
-    case 'activity': body = <ActivityScreen api={api} onBack={back} />; break;
+    case 'activity': body = <ActivityScreen api={api} onBack={back} onSeen={() => setUnread(0)} />; break;
     default: body = <HomeScreen api={api} user={session.user} onNavigate={go} />;
   }
   const animated = <ScreenTransition key={`${current.screen}-${stack.length}`}>{body}</ScreenTransition>;
   if (!mainTabs.includes(current.screen)) return animated;
   const ownHeader = ['students', 'staff', 'oversight', 'more'].includes(current.screen); // these screens show their own title bar
-  return <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}><StatusBar barStyle="dark-content" backgroundColor="white" />{ownHeader ? null : <BrandHeader name={session.user.institutionName} subtitle="Institution Administrator" logoUrl={logoUrl} token={session.token} onNotify={() => go('activity')} />}<View style={{ flex: 1 }}>{animated}</View><BottomNav current={current.screen} onSelect={tab} /></SafeAreaView>;
+  return <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}><StatusBar barStyle="dark-content" backgroundColor="white" />{ownHeader ? null : <BrandHeader name={session.user.institutionName} subtitle="Institution Administrator" logoUrl={logoUrl} token={session.token} unread={unread} onNotify={() => go('activity')} />}<View style={{ flex: 1 }}>{animated}</View><BottomNav current={current.screen} onSelect={tab} /></SafeAreaView>;
 }

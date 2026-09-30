@@ -1,3 +1,5 @@
+import BackArrow from '../components/BackArrow';
+import TextLink from '../components/TextLink';
 import { useEffect, useRef, useState } from 'react';
 import KeyboardScreen from '../components/KeyboardScreen';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -21,9 +23,7 @@ export function Shell({ onBack, children }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       {onBack ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={{ marginTop: 16, marginLeft: 16, width: 44, height: 44, justifyContent: 'center' }}>
-          <Ionicons name="chevron-back" size={26} color={INK} />
-        </Pressable>
+        <BackArrow onPress={onBack} label="Go back" size={26} color={INK} style={{ marginTop: 16, marginLeft: 16, width: 44, height: 44, justifyContent: 'center' }} />
       ) : null}
       <KeyboardScreen contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: onBack ? 44 : 0, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">{children}</KeyboardScreen>
     </SafeAreaView>
@@ -139,7 +139,7 @@ export default function ActivationFlow({ role = 'student', onBack, onDone }) {
         <PrimaryButton title={busy ? 'Verifying...' : 'Verify'} onPress={busy ? undefined : verify} />
         <View style={{ marginTop: 24, flexDirection: 'row', justifyContent: 'center' }}>
           <Text style={{ fontSize: 13, color: MUTED }}>Didn’t receive the code? </Text>
-          <Pressable disabled={seconds > 0 || busy} onPress={requestCode}><Text style={{ fontSize: 13, fontWeight: '700', color: seconds > 0 ? '#b9a5e8' : PURPLE }}>Resend</Text></Pressable>
+          <TextLink disabled={seconds > 0 || busy} onPress={requestCode} color={seconds > 0 ? '#b9a5e8' : PURPLE} style={{ fontSize: 13 }}>Resend</TextLink>
         </View>
       </Shell>
     );

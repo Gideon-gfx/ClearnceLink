@@ -30,7 +30,7 @@ export default function HomeScreen({ api, user, onNavigate }) {
     <QuickAction icon="cloud-upload" title="Import Students" onPress={() => onNavigate('import-students')} />
     <QuickAction icon="person-add-outline" title="Add Staff" onPress={() => onNavigate('add-staff')} />
     <QuickAction icon="cloud-upload-outline" title="Import Staff" onPress={() => onNavigate('import-staff')} />
-    <QuickAction icon="shield-checkmark-outline" title="Assign Officer Role" onPress={() => onNavigate('assign-role')} />
+    <QuickAction icon="shield-checkmark-outline" title="Assigned Roles" onPress={() => onNavigate('assigned-roles')} />
     <Heading action="View All" onAction={() => onNavigate('activity')}>Recent Activity</Heading>
     {overview?.recent?.length ? overview.recent.map((item) => <Card key={item.id}><Text style={{ fontSize: 12, color: C.ink, fontFamily: 'Inter_600SemiBold' }}>{item.action}</Text><Text style={{ marginTop: 4, fontSize: 11, color: C.muted }}>{item.target} · {new Date(item.at).toLocaleDateString()}</Text></Card>) : <Empty title="No activity yet" detail="Actions in your institution will appear here." icon="time-outline" />}
   </ScrollView>;

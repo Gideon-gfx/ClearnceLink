@@ -28,7 +28,9 @@ export default function PeopleList({ api, kind, onNavigate, onBack }) {
       {!filtered.length ? <Empty title={student ? 'No students yet' : 'No staff yet'} detail={student ? 'Add a student or import an admitted student list.' : 'Add staff or import your staff list.'} /> : filtered.map((item, index) => <Pressable key={item.id} onPress={() => onNavigate(student ? 'student-detail' : 'staff-detail', { id: item.id })} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: C.line }}>
         <View style={{ width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: ['#B083E9', '#F95970', '#5C7DF0', '#A957ED', '#168BA0'][index % 5] }}><Text style={{ fontSize: 15, color: 'white', fontFamily: 'Inter_700Bold' }}>{initials(item.name)}</Text></View>
         <View style={{ flex: 1, marginLeft: 12 }}><Text numberOfLines={1} style={{ fontSize: 15, color: C.ink, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{item.name}</Text><Text numberOfLines={1} style={{ marginTop: 3, fontSize: 12, color: C.muted }}>{student ? item.clearanceId : item.accessId}</Text><Text numberOfLines={1} style={{ marginTop: 2, fontSize: 12, color: C.muted }}>{item.department} {student ? `· ${item.level} Level` : ''}</Text></View>
-        <Pill tone={item.disabled ? 'red' : item.status === 'cleared' ? 'green' : item.status === 'ready' ? 'purple' : 'amber'}>{item.disabled ? 'Disabled' : item.status === 'ready' ? 'Ready' : item.status === 'cleared' ? 'Cleared' : 'Pending'}</Pill>
+        {student
+          ? <Pill tone={item.disabled ? 'red' : item.status === 'cleared' ? 'green' : item.status === 'ready' ? 'purple' : 'amber'}>{item.disabled ? 'Disabled' : item.status === 'ready' ? 'Ready' : item.status === 'cleared' ? 'Cleared' : 'Pending'}</Pill>
+          : <Pill tone={item.disabled ? 'red' : item.approved ? 'green' : 'amber'}>{item.disabled ? 'Disabled' : item.approved ? 'Approved' : 'Pending'}</Pill>}
         <Ionicons name="chevron-forward" size={20} color={C.muted} style={{ marginLeft: 6 }} />
       </Pressable>)}
     </ScrollView>

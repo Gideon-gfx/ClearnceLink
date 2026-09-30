@@ -1,3 +1,4 @@
+import BackArrow from '../components/BackArrow';
 import { useEffect, useRef, useState } from 'react';
 import KeyboardScreen from '../components/KeyboardScreen';
 import ErrorBanner from '../components/ErrorBanner';
@@ -5,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { readFileAsBase64 } from '../components/readFile';
 import countryList from 'country-list';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Animated, BackHandler, Easing, Image, Platform, Pressable, StatusBar, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, BackHandler, Easing, Image, Platform, Pressable, StatusBar, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Field, PasswordChecklist, PhoneField, PrimaryButton, ScreenTransition, SelectField, passwordIsStrong } from '../components/Shared';
 import PaymentPanel from '../institution/paymentPanel';
@@ -22,6 +23,8 @@ const stateOptions = {
 };
 
 export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
+  const [openingLink, setOpeningLink] = useState(false);
+  const openLink = (url) => { setOpeningLink(true); Linking.openURL(url).catch(() => {}).finally(() => setTimeout(() => setOpeningLink(false), 600)); };
   const { width } = useWindowDimensions();
   const backOffset = useRef(new Animated.Value(0)).current;
   const [step, setStep] = useState(1);
@@ -178,9 +181,7 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View className="flex-1">
         <View className="flex-row items-center gap-3 px-[22px] pb-3 pt-16">
-          <Pressable accessibilityRole="button" accessibilityLabel={step === 1 ? 'Back to previous screen' : 'Previous registration step'} onPress={goBackAnimated} className="h-12 w-12 items-center justify-center">
-            <Ionicons name="chevron-back" size={36} color="#171548" />
-          </Pressable>
+          <BackArrow onPress={goBackAnimated} label={step === 1 ? 'Back to previous screen' : 'Previous registration step'} size={36} color="#171548" className="h-12 w-12 items-center justify-center" />
           <View className="h-[10px] flex-1 overflow-hidden rounded-full bg-[#eceafa]">
             <View className={`h-full rounded-full bg-brand ${progressWidth}`} />
           </View>
@@ -300,7 +301,7 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
               {step === 3 && !verifying ? (
                 <Text className="mt-3 text-center text-[10px] leading-4 text-muted">
                   By continuing, you agree to our{'\n'}
-                  <Text className="font-bold text-ink" onPress={() => Linking.openURL('https://clearancelink.app/terms-of-use')}>Terms of Service</Text> and <Text className="font-bold text-ink" onPress={() => Linking.openURL('https://clearancelink.app/privacy-policy')}>Privacy Policy.</Text>
+                  <Text className="font-bold text-ink" onPress={() => openLink('https://clearancelink.app/terms-of-use')}>Terms of Service</Text> and <Text className="font-bold text-ink" onPress={() => openLink('https://clearancelink.app/privacy-policy')}>Privacy Policy.</Text>{openingLink ? <ActivityIndicator size="small" color="#5a17c9" style={{ marginLeft: 6 }} /> : null}
                 </Text>
               ) : null}
             </View>

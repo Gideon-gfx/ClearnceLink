@@ -59,7 +59,7 @@ function AppScreens() {
   if (screen === 'account-home' && session?.user?.role === 'student') return <StudentApp session={session} onSignOut={() => { setSession(null); setScreen('welcome'); }} />;
   if (screen === 'account-home' && session?.user?.role === 'staff') return <StaffApp session={session} onSignOut={() => { setSession(null); setScreen('welcome'); }} />;
   if (screen === 'account-home' && session?.user?.role === 'institution' && (session.user.status !== 'verified' || session.user.expired)) return <PendingVerificationScreen session={session} onPaid={(user) => setSession({ ...session, user })} onSignOut={() => { setSession(null); setScreen('institution-login'); }} />;
-  if (screen === 'account-home' && session?.user?.role === 'institution') return <InstitutionApp session={session} onSignOut={() => { setSession(null); setScreen('welcome'); }} />;
+  if (screen === 'account-home' && session?.user?.role === 'institution') return <InstitutionApp session={session} onSessionChange={(user) => setSession({ ...session, user })} onSignOut={() => { setSession(null); setScreen('welcome'); }} />;
   if (screen === 'account-home') return <ScreenTransition key={screen}><AccountHomeScreen user={session?.user} onSignOut={() => { setSession(null); setScreen('welcome'); }} /></ScreenTransition>;
   return null;
 }

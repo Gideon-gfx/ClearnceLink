@@ -4,18 +4,17 @@ import ErrorBanner from '../components/ErrorBanner';
 import { ActivityIndicator, BackHandler, StatusBar, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiRequest } from '../api';
-import { BottomTabs, MUTED, PURPLE, SolidButton } from '../student/ui';
-import { DocumentsScreen, RejectScreen, StudentDetailsScreen, TakeActionScreen, ViewDocumentScreen } from './flow';
+import { BottomTabs, MUTED, PURPLE, SolidButton } from './ui';
+import { CreateClearanceScreen, DocumentsScreen, RejectScreen, StudentDetailsScreen, TakeActionScreen, ViewDocumentScreen } from './flow';
 import { ClearancesScreen, HomeScreen, NotificationsScreen, ProfileScreen, StudentsScreen } from './screens';
 
 const TABS = [
   { key: 'home', label: 'Home', icon: 'home' },
   { key: 'students', label: 'Students', icon: 'people' },
-  { key: 'clearances', label: 'Clearances', icon: 'clipboard' },
-  { key: 'notifications', label: 'Notifications', icon: 'notifications' },
+  { key: 'clearances', label: 'Clearances', icon: 'shield-checkmark' },
   { key: 'profile', label: 'Profile', icon: 'person' },
 ];
-const SCREENS = { student: StudentDetailsScreen, documents: DocumentsScreen, view: ViewDocumentScreen, action: TakeActionScreen, reject: RejectScreen };
+const SCREENS = { student: StudentDetailsScreen, documents: DocumentsScreen, view: ViewDocumentScreen, action: TakeActionScreen, reject: RejectScreen, 'create-clearance': CreateClearanceScreen };
 const TAB_SCREENS = { home: HomeScreen, students: StudentsScreen, clearances: ClearancesScreen, notifications: NotificationsScreen, profile: ProfileScreen };
 
 export default function StaffApp({ session, onSignOut }) {
@@ -24,6 +23,7 @@ export default function StaffApp({ session, onSignOut }) {
   const [error, setError] = useState('');
   const [version, setVersion] = useState(0);
   const [tab, setTab] = useState('home');
+  const [filter, setFilter] = useState(null);
   const [stack, setStack] = useState([]);
 
   const reload = useCallback(async () => {
@@ -46,9 +46,10 @@ export default function StaffApp({ session, onSignOut }) {
     token, overview, version, reload, back, signOut: onSignOut,
     go: (name, params = {}) => setStack((current) => [...current, { name, params }]),
     backTo: (name) => setStack((current) => { const at = current.map((item) => item.name).lastIndexOf(name); return at < 0 ? [] : current.slice(0, at + 1); }),
-    setTab: (next) => { setStack([]); setTab(next); },
+    filter,
+    setTab: (next, nextFilter = null) => { setStack([]); setFilter(nextFilter); setTab(next); },
     bump: () => setVersion((value) => value + 1),
-  }), [token, overview, version, reload, back, onSignOut]);
+  }), [token, overview, version, reload, back, onSignOut, filter]);
 
   if (!overview) {
     return (

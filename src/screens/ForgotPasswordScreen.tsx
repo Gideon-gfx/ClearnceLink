@@ -1,3 +1,4 @@
+import TextLink from '../components/TextLink';
 import { useEffect, useRef, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Animated, Easing, Pressable, Text, useWindowDimensions, View } from 'react-native';
@@ -101,7 +102,7 @@ export default function ForgotPasswordScreen({ mode, initialEmail = '', onBack, 
           <PrimaryButton title={busy ? 'Verifying...' : 'Verify Code'} onPress={busy ? undefined : verifyCode} />
           <View style={{ marginTop: 24, flexDirection: 'row', justifyContent: 'center' }}>
             <Text style={{ fontSize: 13, color: MUTED }}>Didn’t receive the code? </Text>
-            <Pressable disabled={resendIn > 0 || busy} onPress={sendCode}><Text style={{ fontSize: 13, fontWeight: '700', color: resendIn > 0 ? '#b9a5e8' : PURPLE }}>{resendIn > 0 ? `Resend in 0:${String(resendIn).padStart(2, '0')}` : 'Resend'}</Text></Pressable>
+            <TextLink disabled={resendIn > 0 || busy} onPress={sendCode} color={resendIn > 0 ? '#b9a5e8' : PURPLE} style={{ fontSize: 13 }}>{resendIn > 0 ? `Resend in 0:${String(resendIn).padStart(2, '0')}` : 'Resend'}</TextLink>
           </View>
           <Text style={{ marginTop: 14, textAlign: 'center', fontSize: 12, color: MUTED }}>Check your spam folder if it doesn’t arrive within a minute.</Text>
         </>

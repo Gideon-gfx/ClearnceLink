@@ -64,7 +64,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
   for (const key of ['submissions', 'notifications', 'otps', 'activations', 'completions', 'audit']) data[key] ||= [];
 
   const now = () => new Date().toISOString();
-  const audit = (actor, action, target, student) => data.audit.push({ actor, action, target, institution: student.institutionName, at: now() });
+  const audit = (actor, action, target, student) => data.audit.push({ id: crypto.randomUUID(), institutionId: student.institutionId, actor, action, target, institution: student.institutionName, at: now() });
   const notify = (student, type, title, body, clearanceId) => {
     data.notifications.unshift({ id: crypto.randomUUID(), studentId: student.id, type, title, body, clearanceId, read: false, createdAt: now() });
   };
@@ -93,6 +93,9 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
   function describeSubmission(item) {
     return item && { id: item.id, fileId: item.fileId, fileName: item.fileName, mimeType: item.mimeType, size: item.size, status: item.status, reason: item.reason, message: item.message, reviewer: item.reviewer, submittedAt: item.createdAt, reviewedAt: item.reviewedAt, stampedFileId: item.stampedFileId };
   }
+  // A clearance belongs to one institution. If an officer created it, it also only applies to students in that officer's scope.
+  const visibleTo = (student, clearance) => (clearance.institutionId || null) === (student.institutionId || null)
+    && (!clearance.scope || (student.department === clearance.scope.department && student.level === clearance.scope.level && student.session === clearance.scope.session));
   function buildClearance(student, clearance, detail) {
     const stages = clearance.stages.map((stage) => {
       const requirements = stage.requirements.map((requirement) => {
@@ -102,11 +105,15 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       return { id: stage.id, name: stage.name, status: rollup(requirements.map((item) => item.status)), requirements };
     });
     const done = stages.filter((stage) => stage.status === 'cleared').length;
+    const allDocs = stages.flatMap((stage) => stage.requirements);
+    const docsDone = allDocs.filter((item) => item.status === 'cleared').length;
+    const docsTotal = allDocs.length;
     const status = done === stages.length ? 'completed' : rollup(stages.map((stage) => stage.status));
     const completedAt = data.completions.find((item) => item.studentId === student.id && item.clearanceId === clearance.id)?.at;
     return {
       id: clearance.id, name: clearance.name, session: clearance.session, description: clearance.description, status,
-      done, total: stages.length, percent: Math.round((done / stages.length) * 100), stages, completedAt,
+      // Progress counts documents, so a clearance with one stage and several documents moves as each is cleared.
+      done: docsDone, total: docsTotal, percent: docsTotal ? Math.round((docsDone / docsTotal) * 100) : 0, stages, completedAt,
       completion: status === 'completed' ? completionFor(student, clearance) : undefined,
     };
   }
@@ -170,11 +177,11 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       submission.stampedFileId = stampedFileId;
       submission.stampedAt = now();
     } catch (error) {
-      console.error('Stamping failed:', error.message);
+      console.error('Stamping failed:', (error && (error.stack || error.message)) || error);
     }
   }
 
-  const core = { latest, notify, audit, buildClearance, studentProfile, checkCompletion, describeSubmission, stampSubmission, sha, now, hooks: { submission: [] } };
+  const core = { visibleTo, latest, notify, audit, buildClearance, studentProfile, checkCompletion, describeSubmission, stampSubmission, sha, now, hooks: { submission: [] } };
 
   async function handle(req, res, route) {
     if (!route.startsWith('/api/student') && !route.startsWith('/api/files/') && !route.startsWith('/api/dev/')) return false;
@@ -187,8 +194,6 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       if (student.disabled || (student.institutionId && !student.approved)) return send(res, 403, { error: 'This Clearance ID is not available yet. Contact your institution.' }), true;
       if (student.disabled || student.approved === false) return send(res, 403, { error: 'This Clearance ID has not been released yet. Please contact your institution.' }), true;
       if (student.userId) return send(res, 409, { error: 'This account is already activated. Please log in.' }), true;
-      const recent = data.otps.find((item) => item.studentId === student.id && Date.now() - item.sentAt < 5 * 60_000);
-      if (recent) return send(res, 429, { error: `Your code is still valid. You can request a new one in ${Math.ceil((5 * 60_000 - (Date.now() - recent.sentAt)) / 60_000)} min.` }), true;
       const code = String(crypto.randomInt(100000, 1000000));
       try { await sendOtpEmail(student.email, student.name.split(' ')[0], code); }
       catch (cause) {
@@ -232,7 +237,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       data.users.push(user);
       student.userId = user.id;
       data.activations = data.activations.filter((item) => item !== activation);
-      for (const clearance of data.clearances.filter((item) => (item.institutionId || null) === (student.institutionId || null))) notify(student, 'assigned', 'Clearance assigned', `${clearance.name} ${clearance.session} has been assigned to you.`, clearance.id);
+      for (const clearance of data.clearances.filter((item) => visibleTo(student, item))) notify(student, 'assigned', 'Clearance assigned', `${clearance.name} ${clearance.session} has been assigned to you.`, clearance.id);
       audit(student.name, 'Student account activated', student.clearanceId, student);
       save();
       sendWelcomeEmail('student', student.email, student.name, student.institutionName).catch((cause) => console.error('Welcome email failed:', cause.message));
@@ -244,21 +249,31 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
     const student = studentFromRequest(req);
     if (!student) return send(res, 401, { error: 'Session expired. Please log in again.' }), true;
 
+    // The institution's logo, shown in the student header.
+    if (route === '/api/student/logo' && req.method === 'GET') {
+      const institution = data.users.find((item) => item.id === student.institutionId && item.role === 'institution');
+      const logo = institution?.attachments?.logo;
+      const content = logo && await files.get(logo.fileId);
+      if (!content) return send(res, 404, { error: 'No institution logo uploaded.' }), true;
+      res.writeHead(200, { 'Content-Type': logo.mimeType, 'Cache-Control': 'private, max-age=300' });
+      res.end(content); return true;
+    }
     if (route === '/api/student/overview' && req.method === 'GET') {
-      const clearances = data.clearances.filter((item) => (item.institutionId || null) === (student.institutionId || null)).map((item) => buildClearance(student, item, false));
-      send(res, 200, { student: studentProfile(student), clearances, unread: data.notifications.filter((item) => item.studentId === student.id && !item.read).length });
+      const clearances = data.clearances.filter((item) => visibleTo(student, item)).map((item) => buildClearance(student, item, false));
+      const institution = data.users.find((item) => item.id === student.institutionId && item.role === 'institution');
+      send(res, 200, { student: studentProfile(student), hasLogo: Boolean(institution?.attachments?.logo), clearances, unread: data.notifications.filter((item) => item.studentId === student.id && !item.read).length });
       return true;
     }
     const detailMatch = route.match(/^\/api\/student\/clearances\/([\w-]+)$/);
     if (detailMatch && req.method === 'GET') {
-      const clearance = data.clearances.find((item) => item.id === detailMatch[1] && (item.institutionId || null) === (student.institutionId || null));
+      const clearance = data.clearances.find((item) => item.id === detailMatch[1] && visibleTo(student, item));
       if (!clearance) return send(res, 404, { error: 'Clearance not found.' }), true;
       send(res, 200, { student: studentProfile(student), clearance: buildClearance(student, clearance, true) });
       return true;
     }
     if (route === '/api/student/submissions' && req.method === 'POST') {
       const input = await readJson(req, 9_500_000);
-      const clearance = data.clearances.find((item) => item.id === input.clearanceId && (item.institutionId || null) === (student.institutionId || null));
+      const clearance = data.clearances.find((item) => item.id === input.clearanceId && visibleTo(student, item));
       const requirement = clearance?.stages.flatMap((stage) => stage.requirements).find((item) => item.id === input.requirementId);
       if (!requirement || requirement.kind !== 'upload') return send(res, 404, { error: 'Requirement not found.' }), true;
       const previous = latest(student, requirement.id);
@@ -312,7 +327,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
     if (route === '/api/dev/review' && req.method === 'POST') {
       if (isProduction) return send(res, 404, { error: 'Not found.' }), true;
       const input = await readJson(req);
-      const clearance = data.clearances.find((item) => item.id === input.clearanceId && (item.institutionId || null) === (student.institutionId || null));
+      const clearance = data.clearances.find((item) => item.id === input.clearanceId && visibleTo(student, item));
       const requirement = clearance?.stages.flatMap((stage) => stage.requirements).find((item) => item.id === input.requirementId);
       if (!requirement) return send(res, 404, { error: 'Requirement not found.' }), true;
       let submission = latest(student, requirement.id);

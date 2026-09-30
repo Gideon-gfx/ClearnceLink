@@ -7,10 +7,11 @@ const MAX_STAMP_BYTES = 1.5 * 1024 * 1024;
 
 // Validates an uploaded stamp and stores it on `owner` (a staff record or an institution user).
 async function saveStamp({ files, owner, input, now }) {
-  const mimeType = String(input.mimeType || '');
-  if (!STAMP_TYPES.includes(mimeType)) throw Object.assign(new Error('The stamp must be a PNG or JPG image.'), { status: 400 });
   const buffer = Buffer.from(String(input.base64 || ''), 'base64');
   if (!buffer.length) throw Object.assign(new Error('The stamp file is empty.'), { status: 400 });
+  // Trust the file itself, not the label the phone gave it: a WebP or HEIC photo labelled "jpeg" cannot be stamped onto a PDF.
+  const mimeType = buffer[0] === 0x89 && buffer[1] === 0x50 ? 'image/png' : buffer[0] === 0xff && buffer[1] === 0xd8 ? 'image/jpeg' : '';
+  if (!mimeType) throw Object.assign(new Error('That image format is not supported. Please choose a PNG or JPG image.'), { status: 400 });
   if (buffer.length > MAX_STAMP_BYTES) throw Object.assign(new Error('The stamp must be under 1.5MB.'), { status: 400 });
   const fileId = require('node:crypto').randomUUID();
   await files.put(fileId, buffer);
@@ -40,8 +41,17 @@ async function stampDocument({ buffer, mimeType, marks, reviewer, date }) {
   const font = await pdf.embedFont(StandardFonts.HelveticaBold);
   const embedded = [];
   for (const mark of marks) {
-    embedded.push(mark.mimeType === 'image/png' ? await pdf.embedPng(mark.image) : await pdf.embedJpg(mark.image));
+    // Go by the file's own first bytes, not the label it was uploaded with. A mislabelled stamp is skipped, never fatal.
+    try {
+      const png = mark.image[0] === 0x89 && mark.image[1] === 0x50;
+      const jpg = mark.image[0] === 0xff && mark.image[1] === 0xd8;
+      if (!png && !jpg) throw new Error('not a PNG or JPG image');
+      embedded.push(png ? await pdf.embedPng(mark.image) : await pdf.embedJpg(mark.image));
+    } catch (error) {
+      console.error('A stamp image could not be used, stamping without it:', error && error.message ? error.message : error);
+    }
   }
+  if (!embedded.length) return null;
   const stampedOn = new Date(date || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const caption = `Cleared${reviewer ? ` by ${reviewer}` : ''} - ${stampedOn}`;
 

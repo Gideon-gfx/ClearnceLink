@@ -1,6 +1,8 @@
+import BackArrow from '../components/BackArrow';
 import { useEffect, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ErrorBanner from '../components/ErrorBanner';
+import TextLink from '../components/TextLink';
 import { useAsyncPress } from '../components/useAsyncPress';
 import { ActivityIndicator, Image, Pressable, ScrollView, StatusBar, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,7 +29,7 @@ export function useLogoUri(logoUrl, token) {
   return uri;
 }
 
-export function BrandHeader({ name, subtitle, onNotify, logoUrl, token }) {
+export function BrandHeader({ name, subtitle, onNotify, logoUrl, token, unread = 0 }) {
   const logoUri = useLogoUri(logoUrl, token);
   const showLogo = Boolean(logoUri);
   return <View style={{ height: 84, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 17, borderBottomWidth: 1, borderColor: C.line, backgroundColor: 'white' }}>
@@ -36,14 +38,14 @@ export function BrandHeader({ name, subtitle, onNotify, logoUrl, token }) {
       {showLogo ? <Image source={{ uri: logoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" accessibilityLabel="Institution logo" /> : <Ionicons name="school" size={30} color="white" />}
     </View>
     <View style={{ flex: 1, marginLeft: 12 }}><Text numberOfLines={2} style={{ fontSize: 18, lineHeight: 22, color: C.ink, fontFamily: 'Inter_800ExtraBold', fontWeight: '800' }}>{name}</Text><Text style={{ marginTop: 2, fontSize: 12, color: C.muted, fontFamily: 'Inter_500Medium' }}>{subtitle}</Text></View>
-    <Pressable accessibilityRole="button" accessibilityLabel="Notifications" onPress={onNotify} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="notifications-outline" size={25} color={C.ink} /></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Notifications" onPress={onNotify} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="notifications-outline" size={25} color={C.ink} />{unread > 0 ? <View style={{ position: 'absolute', top: 4, right: 3, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: C.red, borderWidth: 1.5, borderColor: 'white' }}><Text style={{ color: 'white', fontSize: 10, fontFamily: 'Inter_700Bold' }}>{unread > 99 ? '99+' : unread}</Text></View> : null}</Pressable>
   </View>;
 }
 
 // A screen's own header: back arrow on the left and the title in the centre.
 export function ScreenTitle({ title, onBack }) {
   return <View style={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, backgroundColor: 'white' }}>
-    {onBack ? <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={{ width: 44, height: 48, justifyContent: 'center' }}><Ionicons name="chevron-back" size={30} color={C.ink} /></Pressable> : <View style={{ width: 44 }} />}
+    {onBack ? <BackArrow onPress={onBack} size={30} color={C.ink} style={{ width: 44, height: 48, justifyContent: 'center' }} /> : <View style={{ width: 44 }} />}
     <Text numberOfLines={1} style={{ flex: 1, textAlign: 'center', fontSize: 20, color: C.ink, fontFamily: 'Inter_800ExtraBold', fontWeight: '800' }}>{title}</Text>
     <View style={{ width: 44 }} />
   </View>;
@@ -69,7 +71,7 @@ export function Page({ title, subtitle, onBack, children, footer, noScroll = fal
 }
 
 export function Card({ children, style }) { return <View style={[{ backgroundColor: 'white', borderWidth: 2, borderColor: C.border, borderRadius: 14, padding: 16, marginBottom: 10 }, style]}>{children}</View>; }
-export function Heading({ children, action, onAction }) { return <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 12 }}><Text style={{ fontSize: 18, color: C.ink, fontFamily: 'Inter_800ExtraBold', fontWeight: '800' }}>{children}</Text>{action ? <Pressable onPress={onAction}><Text style={{ fontSize: 14, color: C.purple, fontFamily: 'Inter_700Bold' }}>{action} →</Text></Pressable> : null}</View>; }
+export function Heading({ children, action, onAction }) { return <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 12 }}><Text style={{ fontSize: 18, color: C.ink, fontFamily: 'Inter_800ExtraBold', fontWeight: '800' }}>{children}</Text>{action ? <TextLink onPress={onAction} color={C.purple} style={{ fontSize: 14, fontWeight: undefined, fontFamily: 'Inter_700Bold' }}>{action} →</TextLink> : null}</View>; }
 export function Pill({ children, tone = 'purple' }) { const colors = tone === 'green' ? [C.green, '#D9F8EC'] : tone === 'red' ? [C.red, '#FFE8EF'] : tone === 'amber' ? ['#BC7800', '#FFF2D2'] : [C.purple, '#EEE8FF']; return <View style={{ alignSelf: 'flex-start', borderRadius: 20, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: colors[1] }}><Text style={{ fontSize: 12, color: colors[0], fontFamily: 'Inter_700Bold' }}>{children}</Text></View>; }
 
 // Main action button. Any async onPress automatically shows a spinner until it finishes; `busy` forces it on.

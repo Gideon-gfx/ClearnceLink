@@ -17,7 +17,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
   for (const key of ['staffOtps', 'staffActivations', 'staffNotifications']) data[key] ||= [];
   save();
 
-  const { latest, notify, audit, describeSubmission, sha, now } = core;
+  const { visibleTo, latest, notify, audit, describeSubmission, sha, now } = core;
   const notifyStaff = (staff, type, title, body) => data.staffNotifications.unshift({ id: crypto.randomUUID(), staffId: staff.id, type, title, body, read: false, createdAt: now() });
 
   const inScope = (staff, student) => Boolean(staff.scope) && (staff.institutionId || null) === (student.institutionId || null) && student.department === staff.scope.department && student.level === staff.scope.level && student.session === staff.scope.session;
@@ -36,7 +36,8 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
     let group = 'none';
     if (has('pending', 'resubmitted')) group = 'pending';
     else if (has('rejected')) group = 'action';
-    else if (items.length && items.every((item) => item.sub?.status === 'cleared')) group = 'cleared';
+    // Nothing is waiting on this reviewer and at least one document has been cleared: cleared (new uploads move them back to pending).
+    else if (items.some((item) => item.sub?.status === 'cleared')) group = 'cleared';
     const submittedAt = items.map((item) => item.sub?.createdAt).filter(Boolean).sort().at(-1);
     return { items, group, submittedAt };
   }
@@ -76,8 +77,6 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       const staff = data.staff.find((item) => item.accessId === idFrom(input));
       if (!staff || staff.status !== 'active' || staff.disabled) return send(res, 404, { error: 'We could not find that Staff Access ID. Check it and try again.' }), true;
       if (staff.userId) return send(res, 409, { error: 'This account is already activated. Please log in.' }), true;
-      const recent = data.staffOtps.find((item) => item.staffId === staff.id && Date.now() - item.sentAt < 5 * 60_000);
-      if (recent) return send(res, 429, { error: `Your code is still valid. You can request a new one in ${Math.ceil((5 * 60_000 - (Date.now() - recent.sentAt)) / 60_000)} min.` }), true;
       const code = String(crypto.randomInt(100000, 1000000));
       try { await sendOtpEmail(staff.email, staff.name.replace(/^(Mr|Mrs|Ms|Dr|Prof)\.?\s+/i, '').split(' ')[0], code, 'activate your ClearanceLink staff account'); }
       catch (cause) {
@@ -147,7 +146,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
     if (route === '/api/staff/stamp' && req.method === 'PUT') {
       try {
         const stamp = await saveStamp({ files, owner: staff, input: await readJson(req, 3_000_000), now });
-        audit(staff.name, 'Stamp uploaded', staff.name, { institutionName: staff.institutionName });
+        audit(staff.name, 'Stamp uploaded', staff.name, { institutionName: staff.institutionName, institutionId: staff.institutionId });
         save();
         send(res, 200, { stamp: { name: stamp.name, mimeType: stamp.mimeType, size: stamp.size, updatedAt: stamp.updatedAt } });
       } catch (error) {
@@ -157,7 +156,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
     }
     if (route === '/api/staff/stamp' && req.method === 'DELETE') {
       await removeStamp({ files, owner: staff });
-      audit(staff.name, 'Stamp removed', staff.name, { institutionName: staff.institutionName });
+      audit(staff.name, 'Stamp removed', staff.name, { institutionName: staff.institutionName, institutionId: staff.institutionId });
       save();
       send(res, 200, { stamp: null });
       return true;
@@ -185,22 +184,82 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
           if (status === 'cleared') cleared += 1;
           if (status === 'pending' || status === 'resubmitted') pending += 1;
         }
-        return { id: clearance.id, name: clearance.name, session: clearance.session, percent: total ? Math.round((cleared / total) * 100) : 0, pending };
+        return { id: clearance.id, name: clearance.name, session: clearance.session, percent: total ? Math.round((cleared / total) * 100) : 0, pending, mine: clearance.createdBy === staff.id, stages: clearance.stages.length };
       });
       const unread = data.staffNotifications.filter((item) => item.staffId === staff.id && !item.read).length;
-      send(res, 200, { staff: staffProfile(staff), counts, clearances, unread, chipCounts: (() => {
+      const institution = data.users.find((item) => item.id === staff.institutionId && item.role === 'institution');
+      send(res, 200, { staff: staffProfile(staff), hasLogo: Boolean(institution?.attachments?.logo), canCreate: staff.role === 'officer' && Boolean(staff.scope), counts, clearances, unread, chipCounts: (() => {
         const groups = scoped().map((student) => summarize(staff, student).group);
-        return { pending: groups.filter((g) => g === 'pending').length, action: groups.filter((g) => g === 'action').length, cleared: groups.filter((g) => g === 'cleared').length };
+        return { all: groups.length, pending: groups.filter((g) => g === 'pending').length, action: groups.filter((g) => g === 'action').length, cleared: groups.filter((g) => g === 'cleared').length };
       })() });
       return true;
     }
+    // ---- Clearance creation (officers only, inside their own scope) ----
+    if (route === '/api/staff/clearances' && req.method === 'POST') {
+      if (staff.role !== 'officer' || !staff.scope) return send(res, 403, { error: 'Only a clearance officer can create clearances. Ask your institution to assign you the role.' }), true;
+      const input = await readJson(req);
+      const text = (value, max) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+      const name = text(input.name, 80);
+      if (!name) return send(res, 400, { error: 'Give the clearance a name.' }), true;
+      const stagesIn = Array.isArray(input.stages) ? input.stages.slice(0, 12) : [];
+      if (!stagesIn.length) return send(res, 400, { error: 'Add at least one stage.' }), true;
+      const unique = () => crypto.randomBytes(3).toString('hex');
+      const stages = [];
+      for (const [index, stage] of stagesIn.entries()) {
+        const stageName = text(stage.name, 60);
+        if (!stageName) return send(res, 400, { error: `Give stage ${index + 1} a name.` }), true;
+        const requirementsIn = Array.isArray(stage.requirements) ? stage.requirements.slice(0, 12) : [];
+        if (!requirementsIn.length) return send(res, 400, { error: `Add at least one document to “${stageName}”.` }), true;
+        const requirements = [];
+        for (const item of requirementsIn) {
+          const requirementName = text(item.name, 80);
+          if (!requirementName) return send(res, 400, { error: `Every document in “${stageName}” needs a name.` }), true;
+          requirements.push({ id: `${requirementName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'document'}-${unique()}`, name: requirementName, hint: 'PDF, JPG (Max 5MB)', kind: 'upload', formats: ['PDF', 'JPG', 'PNG'], maxMb: 5 });
+        }
+        stages.push({ id: `stage-${index + 1}-${unique()}`, name: stageName, requirements });
+      }
+      const clearance = {
+        id: `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'clearance'}-${unique()}`,
+        institutionId: staff.institutionId, name, session: staff.scope.session, description: text(input.description, 240) || 'Complete every stage to finish this clearance.',
+        stages, scope: { faculty: staff.scope.faculty, department: staff.scope.department, level: staff.scope.level, session: staff.scope.session }, createdBy: staff.id, createdAt: now(),
+      };
+      data.clearances.push(clearance);
+      staff.assignments = [...(staff.assignments || []), { clearanceId: clearance.id }];
+      // Students already using the app in this scope hear about it straight away.
+      for (const student of data.students.filter((item) => item.userId && item.approved && !item.disabled && visibleTo(item, clearance))) notify(student, 'assigned', 'Clearance assigned', `${clearance.name} ${clearance.session} has been assigned to you.`, clearance.id);
+      audit(staff.name, 'Clearance created', clearance.name, { institutionName: staff.institutionName, institutionId: staff.institutionId });
+      save();
+      send(res, 201, { clearance: { id: clearance.id, name: clearance.name } });
+      return true;
+    }
+    const clearanceMatch = route.match(/^\/api\/staff\/clearances\/([\w-]+)$/);
+    if (clearanceMatch && req.method === 'DELETE') {
+      const clearance = data.clearances.find((item) => item.id === clearanceMatch[1] && item.createdBy === staff.id);
+      if (!clearance) return send(res, 404, { error: 'You can only delete clearances you created.' }), true;
+      if ((data.submissions || []).some((item) => item.clearanceId === clearance.id)) return send(res, 409, { error: 'Students have already submitted documents for this clearance, so it can no longer be deleted.' }), true;
+      data.clearances = data.clearances.filter((item) => item !== clearance);
+      for (const member of data.staff) member.assignments = (member.assignments || []).filter((item) => item.clearanceId !== clearance.id);
+      audit(staff.name, 'Clearance deleted', clearance.name, { institutionName: staff.institutionName, institutionId: staff.institutionId });
+      save();
+      send(res, 200, { ok: true });
+      return true;
+    }
+    // The institution's logo, shown in the staff header.
+    if (route === '/api/staff/logo' && req.method === 'GET') {
+      const institution = data.users.find((item) => item.id === staff.institutionId && item.role === 'institution');
+      const logo = institution?.attachments?.logo;
+      const content = logo && await files.get(logo.fileId);
+      if (!content) { send(res, 404, { error: 'No institution logo uploaded.' }); return true; }
+      res.writeHead(200, { 'Content-Type': logo.mimeType, 'Cache-Control': 'private, max-age=300' });
+      res.end(content); return true;
+    }
     if (route === '/api/staff/students' && req.method === 'GET') {
       const url = new URL(req.url, 'http://localhost');
-      const group = url.searchParams.get('group') || 'pending';
+      const group = url.searchParams.get('group') || 'all';
       const query = (url.searchParams.get('q') || '').trim().toLowerCase();
       let rows = scoped().map((student) => row(staff, student));
       if (query) rows = rows.filter((item) => [item.name, item.clearanceId, item.jamb].some((value) => String(value).toLowerCase().includes(query)));
-      else rows = rows.filter((item) => item.group === group);
+      else if (group !== 'all') rows = rows.filter((item) => item.group === group);
       rows.sort((a, b) => String(b.submittedAt || '').localeCompare(String(a.submittedAt || '')));
       const withPhoto = rows.map((item) => ({ ...item, photoFileId: passportFor(data.students.find((s) => s.id === item.id)) }));
       send(res, 200, { students: withPhoto });

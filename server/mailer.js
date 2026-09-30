@@ -307,56 +307,44 @@ async function deliver(to, content) {
 async function sendAccessIdEmail(to, name, code, kind, institutionName) {
   const student = kind === 'student';
   const label = student ? 'Clearance ID' : 'Staff Access ID';
-  // Written in the institution's voice: it is the institution that is sending this to its own student / staff member.
+  // Keep this transactional message as concise as the verification email.
   return deliver(to, {
-    subject: student ? `${institutionName}: your Clearance ID and how to get started` : `${institutionName}: your Staff Access ID and how to get started`,
-    title: student ? 'Your Clearance ID is ready' : 'Your Staff Access ID is ready',
-    preheader: student ? `${institutionName} has set up your clearance. Your personal Clearance ID is inside.` : `${institutionName} has added you to its clearance team. Your personal Staff Access ID is inside.`,
-    greeting: `Dear ${firstName(name)},`,
-    paragraphs: student
-      ? [
-        `Congratulations on your admission to ${institutionName}. To complete your clearance, we have set you up on ClearanceLink, the app where you will submit your documents and follow your progress from your phone.`,
-        'Your personal Clearance ID is below. You will use it once, to activate your account.',
-      ]
-      : [
-        `Welcome to the ${institutionName} team. We have added you to ClearanceLink, the app our staff use to review student clearance submissions.`,
-        'Your personal Staff Access ID is below. You will use it once, to activate your account.',
-      ],
+    subject: `Your ClearanceLink ${label} for ${institutionName}`,
+    title: `Your ${label}`,
+    preheader: `${institutionName} has created your ClearanceLink account. Your ${label} is inside.`,
+    greeting: `Hi ${firstName(name)},`,
+    paragraphs: [`${institutionName} has created your ${student ? 'student' : 'staff'} account on ClearanceLink. Use the ${label} below to activate it.`],
     code,
     codeCaption: label,
-    callout: 'Please keep this ID private. It belongs to you alone and is only needed once, to activate your account. Nobody at the institution will ever ask you to share it.',
-    sections: [
-      {
-        title: 'Activate your account in five steps',
-        ordered: true,
-        list: [
-          'Download and open the ClearanceLink app.',
-          `On the welcome screen, tap ${student ? 'Student' : 'Staff'}, then choose ${student ? 'Create student account' : 'Create staff account'}.`,
-          `Enter your ${label} exactly as shown above.`,
-          'We will email a 6-digit verification code to this address. Enter it to confirm it is you.',
-          'Create a password. From then on you sign in with this email address and your password.',
-        ],
-      },
-      {
-        title: 'What happens next',
-        list: student
-          ? [
-            'Your clearance appears on your home screen, with the requirements you need to complete.',
-            'Upload each document as it is asked for. You will be notified as soon as it is reviewed.',
-            'If a document needs correcting, you will see exactly why and can upload a new copy.',
-            'You will not need your Clearance ID again after activation.',
-          ]
-          : [
-            'Your institution administrator will assign you a clearance role and the scope you work in.',
-            'Once that is done, the students and documents waiting for your review appear on your home screen.',
-            'You will only ever see the work that has been assigned to you.',
-            'You will not need your Staff Access ID again after activation.',
-          ],
-      },
-    ],
-    closing: `If the ID does not work, or you were not expecting this email, please contact the ${institutionName} ${student ? 'clearance office' : 'administrator'} and we will help right away.`,
-    signoff: institutionName,
-    signoffNote: 'Sent through ClearanceLink',
+    callout: 'Keep this ID private. You only need it once to activate your account.',
+    sections: [],
+    closing: `Open ClearanceLink, choose ${student ? 'Student' : 'Staff'}, then enter this ID. We will send a verification code to this email address so you can create your password. If you were not expecting this message, contact ${institutionName}.`,
+  });
+}
+
+
+// Payment receipt or failure notice for an institution's plan payment. `details`: { planName, amount, reference, endsAt }
+async function sendPaymentEmail(to, name, institutionName, outcome, details) {
+  const rows = [`Plan: ${details.planName}`, `Amount: ${details.amount}`, `Reference: ${details.reference}`];
+  if (outcome === 'success') {
+    return deliver(to, {
+      subject: `Payment received: ${details.planName} plan for ${institutionName}`,
+      title: 'Payment received',
+      preheader: `Thank you. Your ${details.planName} plan is active for ${institutionName}.`,
+      greeting: `Hi ${firstName(name)},`,
+      paragraphs: [`We have received your payment and the ${details.planName} plan is now active for ${institutionName}.`],
+      sections: [{ title: 'Payment details', list: [...rows, ...(details.endsAt ? [`Active until: ${details.endsAt}`] : [])] }],
+      closing: 'Keep this email as your receipt. If anything looks wrong, reply to this message and we will help.',
+    });
+  }
+  return deliver(to, {
+    subject: `Your ClearanceLink payment did not go through`,
+    title: 'Payment not completed',
+    preheader: `Your ${details.planName} plan payment was not completed. You have not been charged.`,
+    greeting: `Hi ${firstName(name)},`,
+    paragraphs: [`Your payment for the ${details.planName} plan for ${institutionName} was not completed, so the plan has not been activated.`, 'If money left your account, it is normally returned by your bank within a few days.'],
+    sections: [{ title: 'Payment details', list: rows }],
+    closing: 'Open ClearanceLink, go to More, tap your plan, and try again whenever you are ready.',
   });
 }
 
@@ -400,4 +388,4 @@ async function sendTrialReminderEmail(to, name, institutionName, details) {
   });
 }
 
-module.exports = { sendOtpEmail, sendAccessIdEmail, sendWelcomeEmail, sendTrialReminderEmail, welcomeContent, renderEmail };
+module.exports = { sendPaymentEmail, sendOtpEmail, sendAccessIdEmail, sendWelcomeEmail, sendTrialReminderEmail, welcomeContent, renderEmail };

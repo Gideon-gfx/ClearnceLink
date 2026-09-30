@@ -88,8 +88,6 @@ const server = http.createServer(async (req, res) => {
       if (!/^\S+@\S+\.\S+$/.test(email)) return send(res, 400, { error: 'Enter a valid work email address.' });
       if (data.users.some((user) => user.email === email)) return send(res, 409, { error: 'An account with this email already exists.' });
       data.institutionOtps ||= [];
-      const recent = data.institutionOtps.find((item) => item.email === email && Date.now() - item.sentAt < 5 * 60_000);
-      if (recent) return send(res, 429, { error: `Your code is still valid. You can request a new one in ${Math.ceil((5 * 60_000 - (Date.now() - recent.sentAt)) / 60_000)} min.` });
       const code = String(crypto.randomInt(100000, 1000000));
       try { await sendOtpEmail(email, String(input.name || 'there').trim().split(' ')[0] || 'there', code, 'create your ClearanceLink institution account'); }
       catch (cause) {

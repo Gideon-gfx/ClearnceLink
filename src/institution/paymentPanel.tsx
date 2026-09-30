@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import TextLink from '../components/TextLink';
 import { useAsyncPress } from '../components/useAsyncPress';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ActivityIndicator, Image, Linking, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
@@ -155,9 +156,7 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
       footer = (
         <View>
           <FooterButton icon="rocket-outline" title={`Start ${config.trial.days}-day free trial`} busy={busy && !checkout} onPress={startTrial} />
-          <Pressable accessibilityRole="button" onPress={busy ? undefined : pay} style={{ marginTop: 10, alignItems: 'center', padding: 6 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: PURPLE }}>Skip the trial and pay {money(plan.price, config.currency)} now</Text>
-          </Pressable>
+          <View style={{ marginTop: 10, alignItems: 'center', padding: 6 }}><TextLink disabled={busy} onPress={pay} color={PURPLE} style={{ fontSize: 13 }}>Skip the trial and pay {money(plan.price, config.currency)} now</TextLink></View>
         </View>
       );
     } else if (selected === 'enterprise') footer = <FooterButton icon="mail-outline" title="Contact sales" onPress={contactSales} />;

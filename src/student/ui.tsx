@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import BackArrow from '../components/BackArrow';
+import { useRef, useState } from 'react';
 import { useAsyncPress } from '../components/useAsyncPress';
 import ErrorBanner from '../components/ErrorBanner';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Pressable, ScrollView, Text, View } from 'react-native';
 import { apiBaseUrl } from '../api';
 
 export const PURPLE = '#5a17c9';
 export const INK = '#171548';
 export const MUTED = '#6e6b91';
 export const LINE = '#e6e3f7';
+export const BORDER = '#D9D2F3';
+export const FIELD_BORDER = '#D2CAF1';
+const STRIPS = ['#8427ed', '#7b20e7', '#721bdc', '#6817d2', '#5f13c6', '#5510bb', '#4b0bad'];
 
 export const STATUS = {
   not_started: { label: 'Not Started', color: '#6e6b91', bg: '#f1f0f8' },
@@ -23,8 +27,8 @@ export const STATUS = {
 export function StatusBadge({ status, label }) {
   const style = STATUS[status] || STATUS.not_started;
   return (
-    <View style={{ alignSelf: 'flex-start', backgroundColor: style.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
-      <Text style={{ fontSize: 10, fontWeight: '700', color: style.color }}>{label || style.label}</Text>
+    <View style={{ alignSelf: 'flex-start', backgroundColor: style.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
+      <Text style={{ fontSize: 12, fontFamily: 'Inter_700Bold', fontWeight: '700', color: style.color }}>{label || style.label}</Text>
     </View>
   );
 }
@@ -38,36 +42,35 @@ export function ProgressBar({ percent, color = PURPLE, height = 6 }) {
 }
 
 export function Card({ children, style, onPress }) {
-  const base = { backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: LINE, padding: 14, shadowColor: '#3b1a8a', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 };
+  const base = { backgroundColor: 'white', borderRadius: 14, borderWidth: 2, borderColor: BORDER, padding: 16 };
   if (onPress) return <Pressable onPress={onPress} style={[base, style]}>{children}</Pressable>;
   return <View style={[base, style]}>{children}</View>;
 }
 
 export function ScreenHeader({ title, onBack, right, tint = 'white' }) {
   return (
-    <View style={{ height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, backgroundColor: tint }}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={{ width: 40, height: 44, justifyContent: 'center' }}>
-        <Ionicons name="chevron-back" size={24} color={INK} />
-      </Pressable>
-      <Text numberOfLines={1} style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: INK }}>{title}</Text>
-      <View style={{ width: 40, alignItems: 'flex-end' }}>{right}</View>
+    <View style={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, backgroundColor: tint }}>
+      <BackArrow onPress={onBack} label="Go back" size={30} color={INK} style={{ width: 44, height: 48, justifyContent: 'center' }} />
+      <Text numberOfLines={1} style={{ flex: 1, textAlign: 'center', fontSize: 20, color: INK, fontFamily: 'Inter_800ExtraBold', fontWeight: '800' }}>{title}</Text>
+      <View style={{ width: 44, alignItems: 'flex-end' }}>{right}</View>
     </View>
   );
 }
 
-export function SolidButton({ title, onPress, icon, variant = 'primary', disabled, busy: busyProp }) {
+export function SolidButton({ title, onPress, icon, iconSide = 'left', variant = 'primary', disabled = false, busy: busyProp = false }) {
   const [pending, press] = useAsyncPress(onPress);
   const busy = busyProp || pending;
   const primary = variant === 'primary';
+  const danger = variant === 'danger';
+  const filled = primary || danger;
+  const text = busy ? 'Please wait...' : title;
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={disabled || busy ? undefined : press}
-      className="active:opacity-85"
-      style={{ height: 52, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: primary ? (disabled ? '#b9a5e8' : PURPLE) : 'white', borderWidth: primary ? 0 : 1.5, borderColor: '#d6ccf3' }}
-    >
-      {busy ? <ActivityIndicator color={primary ? 'white' : PURPLE} /> : icon ? <Ionicons name={icon} size={18} color={primary ? 'white' : PURPLE} /> : null}
-      <Text style={{ fontSize: 15, fontWeight: '700', color: primary ? 'white' : PURPLE }}>{busy ? 'Please wait...' : title}</Text>
+    <Pressable accessibilityRole="button" accessibilityState={{ disabled: disabled || busy, busy }} onPress={disabled || busy ? undefined : press}
+      style={{ height: filled ? 60 : 56, overflow: 'hidden', borderRadius: filled ? 15 : 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14, opacity: disabled ? 0.55 : 1, backgroundColor: danger ? '#F01F4A' : primary ? PURPLE : 'white', borderWidth: filled ? 0 : 2, borderColor: '#CBBFF5' }}>
+      {primary ? <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, flexDirection: 'row' }}>{STRIPS.map((color) => <View key={color} style={{ flex: 1, backgroundColor: color }} />)}</View> : null}
+      {busy && iconSide === 'left' ? <ActivityIndicator color={filled ? 'white' : PURPLE} /> : icon && iconSide === 'left' ? <Ionicons name={icon} size={filled ? 22 : 20} color={filled ? 'white' : PURPLE} /> : null}
+      <Text style={{ fontSize: filled ? 17 : 15, color: filled ? 'white' : PURPLE, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{text}</Text>
+      {iconSide === 'right' ? (busy ? <ActivityIndicator color={filled ? 'white' : PURPLE} style={{ position: 'absolute', right: 18 }} /> : icon ? <Ionicons name={icon} size={22} color={filled ? 'white' : PURPLE} style={{ position: 'absolute', right: 18 }} /> : null) : null}
     </Pressable>
   );
 }
@@ -85,20 +88,20 @@ const TABS = [
 
 export function BottomTabs({ active, onSelect, unread, tabs = TABS }) {
   return (
-    <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: LINE, backgroundColor: 'white', paddingTop: 6, paddingBottom: 8 }}>
+    <View style={{ height: 70, flexDirection: 'row', borderTopWidth: 1, borderColor: LINE, backgroundColor: 'white' }}>
       {tabs.map((tab) => {
         const on = active === tab.key;
         return (
-          <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.label} onPress={() => onSelect(tab.key)} style={{ flex: 1, alignItems: 'center', minHeight: 48, justifyContent: 'center' }}>
+          <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.label} onPress={() => onSelect(tab.key)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <View>
-              <Ionicons name={on ? tab.icon : `${tab.icon}-outline`} size={22} color={on ? PURPLE : '#8b87a6'} />
+              <Ionicons name={tab.icon} size={27} color={on ? PURPLE : '#7779A6'} />
               {tab.key === 'notifications' && unread > 0 ? (
-                <View style={{ position: 'absolute', top: -4, right: -8, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#dc2626', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
-                  <Text style={{ color: 'white', fontSize: 9, fontWeight: '700' }}>{unread > 9 ? '9+' : unread}</Text>
+                <View style={{ position: 'absolute', top: -5, right: -9, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#F01F4A', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: 'white' }}>
+                  <Text style={{ color: 'white', fontSize: 10, fontFamily: 'Inter_700Bold' }}>{unread > 9 ? '9+' : unread}</Text>
                 </View>
               ) : null}
             </View>
-            <Text style={{ fontSize: 10, marginTop: 2, fontWeight: on ? '700' : '500', color: on ? PURPLE : '#8b87a6' }}>{tab.label}</Text>
+            <Text style={{ marginTop: 3, fontSize: 11, color: on ? PURPLE : '#7779A6', fontFamily: on ? 'Inter_700Bold' : 'Inter_500Medium' }}>{tab.label}</Text>
           </Pressable>
         );
       })}
@@ -154,4 +157,54 @@ export function useBusy() {
     return undefined;
   };
   return { busy, error, setError, run };
+}
+
+// A tab's own title bar: back arrow on the left (returns to Home) and the title in the centre.
+export function TabTitle({ title, onBack, right }) {
+  return (
+    <View style={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 }}>
+      {onBack ? <BackArrow onPress={onBack} size={30} color={INK} style={{ width: 44, height: 48, justifyContent: 'center' }} /> : <View style={{ width: 44 }} />}
+      <Text numberOfLines={1} style={{ flex: 1, textAlign: 'center', fontSize: 20, color: INK, fontFamily: 'Inter_800ExtraBold', fontWeight: '800' }}>{title}</Text>
+      <View style={{ width: 44, alignItems: 'flex-end' }}>{right}</View>
+    </View>
+  );
+}
+
+// A box that looks raised (tinted background, border and shadow) and springs in a little when pressed.
+export function RaisedPress({ children, onPress, tint = '#F6F2FF', border = '#D9D2F3', padding = 16, contentStyle, style, accessibilityLabel }: { children: any; onPress?: () => any; tint?: string; border?: string; padding?: number; contentStyle?: any; style?: any; accessibilityLabel?: string }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const to = (value) => Animated.spring(scale, { toValue: value, speed: 40, bounciness: 6, useNativeDriver: true }).start();
+  return (
+    <Animated.View style={[{ transform: [{ scale }], borderRadius: 16, backgroundColor: tint, shadowColor: '#3b1a8a', shadowOpacity: 0.22, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 6 }, style]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress} onPressIn={() => to(0.95)} onPressOut={() => to(1)} style={[{ flex: 1, borderRadius: 16, borderWidth: 2, borderColor: border, padding, backgroundColor: tint }, contentStyle]}>
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// The student's whole path: every clearance as a numbered circle, linked to the next (e.g. Hostel - Admission - Medical).
+// A finished clearance is a green tick and turns the link after it green; the one to work on now has a purple ring.
+export function ClearanceChain({ clearances, currentId, onPress }) {
+  const current = currentId || (clearances.find((item) => item.status !== 'completed') || {}).id;
+  const short = (name = '') => name.replace(/\s*clearance\s*$/i, '').trim() || name;
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4 }}>
+      {clearances.map((item, index) => {
+        const done = item.status === 'completed';
+        const waiting = ['pending', 'in_progress', 'resubmitted'].includes(item.status);
+        const on = item.id === current;
+        const color = done ? '#16a34a' : item.status === 'action_required' ? '#dc2626' : waiting ? '#f59e0b' : on ? PURPLE : '#d9d3f0';
+        return (
+          <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.name}, step ${index + 1} of ${clearances.length}`} onPress={() => onPress?.(item)} style={{ width: 88, alignItems: 'center' }}>
+            {index < clearances.length - 1 ? <View style={{ position: 'absolute', top: 18, left: 44, width: 88, height: 4, borderRadius: 2, backgroundColor: done ? '#16a34a' : '#E3DDF5' }} /> : null}
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: color, alignItems: 'center', justifyContent: 'center', borderWidth: on ? 4 : 0, borderColor: '#ddd2fb' }}>
+              {done ? <Ionicons name="checkmark" size={22} color="white" /> : <Text style={{ color: 'white', fontSize: 17, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{item.status === 'action_required' ? '!' : index + 1}</Text>}
+            </View>
+            <Text numberOfLines={2} style={{ marginTop: 6, paddingHorizontal: 4, fontSize: 12, textAlign: 'center', color: on ? INK : MUTED, fontFamily: on ? 'Inter_700Bold' : 'Inter_500Medium', fontWeight: on ? '700' : '500' }}>{short(item.name)}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
 }

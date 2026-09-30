@@ -2,13 +2,13 @@
 // or subscribes to a plan. A plan only takes effect after the server has confirmed the payment, for the exact amount,
 // directly with Paystack.
 const crypto = require('node:crypto');
-const { sendWelcomeEmail } = require('./mailer');
+const { sendWelcomeEmail, sendPaymentEmail } = require('./mailer');
 const { quoteFor, formatMoney } = require('./currency');
 const { trialSettings, plans, subscriptionDays, expiryOf, isExpired } = require('./subscription');
 
 const PAYSTACK = 'https://api.paystack.co';
 // The checkout redirects here when done; the app intercepts this address, so it never has to be a live page.
-const CALLBACK_URL = 'https://clearancelink.app/payment/complete';
+const CALLBACK_URL = process.env.PAYMENT_CALLBACK_URL || 'https://clearncelink.vercel.app/payment/complete';
 const DAY = 24 * 60 * 60 * 1000;
 const dateLabel = (value) => new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -47,8 +47,63 @@ function createHandler({ data, save, send, readJson, publicUser }) {
     return session && data.users.find((item) => item.id === session.userId && item.role === 'institution');
   };
   const offeredPlans = () => plans().filter((item) => item.price > 0);
+  data.audit ||= [];
+  const log = (user, action, target) => data.audit.unshift({ id: crypto.randomUUID(), institutionId: user.id, actor: user.name, action, target, detail: '', at: new Date().toISOString() });
+
+  // Emails the outcome of a payment once, however many times it is confirmed (verify, webhook, retries).
+  function notifyPayment(payment, user, outcome) {
+    if (payment.notified === outcome) return;
+    payment.notified = outcome;
+    const plan = plans().find((item) => item.id === payment.planId);
+    const details = { planName: plan?.name || payment.planId, amount: formatMoney(payment.amount / 100, payment.currency), reference: payment.reference, endsAt: outcome === 'success' && user.subscriptionEndsAt ? dateLabel(user.subscriptionEndsAt) : '' };
+    sendPaymentEmail(user.email, user.name, user.institutionName, outcome, details).catch((cause) => console.error('Payment email failed:', cause.message));
+  }
+
+  // Turns a confirmed payment into a plan. Shared by the in-app verify call and Paystack's webhook, and safe to run twice.
+  function activate(payment, user, result) {
+    payment.status = 'success';
+    payment.paidAt = result.paid_at || new Date().toISOString();
+    const firstActivation = user.status !== 'verified';
+    // Renewing early extends the current period instead of losing the days that are left.
+    const base = user.plan !== 'trial' && user.subscriptionEndsAt && Date.parse(user.subscriptionEndsAt) > Date.now() ? Date.parse(user.subscriptionEndsAt) : Date.now();
+    user.status = 'verified';
+    user.plan = payment.planId;
+    user.paidAt = payment.paidAt;
+    user.verifiedAt = user.verifiedAt || new Date().toISOString();
+    user.subscriptionEndsAt = new Date(base + subscriptionDays() * DAY).toISOString();
+    log(user, 'Plan payment received', `${(plans().find((item) => item.id === payment.planId) || {}).name || payment.planId} plan`);
+    save();
+    notifyPayment(payment, user, 'success');
+    if (firstActivation) welcomeDetails(user, 'paid').then((details) => sendWelcomeEmail('institution', user.email, user.name, user.institutionName, details)).catch((cause) => console.error('Welcome email failed:', cause.message));
+  }
+
+  // Paystack calls this itself, so it carries no sign-in. It is trusted only if the signature matches our secret key.
+  async function webhook(req, res) {
+    const { secret } = settings();
+    const chunks = []; let size = 0;
+    for await (const chunk of req) { size += chunk.length; if (size > 200_000) return send(res, 413, { error: 'Too large.' }); chunks.push(chunk); }
+    const raw = Buffer.concat(chunks);
+    const signature = String(req.headers['x-paystack-signature'] || '');
+    const expected = crypto.createHmac('sha512', secret || 'unset').update(raw).digest('hex');
+    const valid = secret && signature.length === expected.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+    if (!valid) return send(res, 401, { error: 'Invalid signature.' });
+    let event; try { event = JSON.parse(raw.toString('utf8')); } catch { return send(res, 400, { error: 'Invalid body.' }); }
+    // Always answer 200 for events we do not act on, otherwise Paystack keeps retrying them.
+    if (event.event !== 'charge.success') return send(res, 200, { received: true });
+    const result = event.data || {};
+    const payment = data.payments.find((item) => item.reference === String(result.reference || ''));
+    const user = payment && data.users.find((item) => item.id === payment.institutionId && item.role === 'institution');
+    if (!payment || !user || payment.status === 'success') return send(res, 200, { received: true });
+    if (result.status !== 'success' || result.amount !== payment.amount || String(result.currency).toUpperCase() !== payment.currency) {
+      payment.status = 'mismatch'; save(); notifyPayment(payment, user, 'failed'); console.error(`Webhook payment ${payment.reference} did not match the expected amount.`);
+      return send(res, 200, { received: true });
+    }
+    activate(payment, user, result);
+    return send(res, 200, { received: true });
+  }
 
   return async function handle(req, res, route) {
+    if (route === '/api/paystack/webhook' && req.method === 'POST') { await webhook(req, res); return true; }
     if (!route.startsWith('/api/institution-payment/')) return false;
     const user = institutionFrom(req);
     if (!user) return send(res, 401, { error: 'Please sign in to continue.' }), true;
@@ -80,6 +135,7 @@ function createHandler({ data, save, send, readJson, publicUser }) {
       user.trialUsed = true;
       user.trialEndsAt = new Date(Date.now() + trial.days * DAY).toISOString();
       user.verifiedAt = new Date().toISOString();
+      log(user, 'Free trial started', `${trial.days} days`);
       save();
       welcomeDetails(user, 'trial').then((details) => sendWelcomeEmail('institution', user.email, user.name, user.institutionName, details)).catch((cause) => console.error('Welcome email failed:', cause.message));
       send(res, 200, { status: 'success', plan: 'trial', user: publicUser(user) });
@@ -120,26 +176,15 @@ function createHandler({ data, save, send, readJson, publicUser }) {
       try {
         const result = await paystack(secret, `/transaction/verify/${encodeURIComponent(payment.reference)}`);
         if (result.status !== 'success') {
-          if (['failed', 'abandoned', 'reversed'].includes(result.status)) { payment.status = result.status; save(); }
+          if (['failed', 'abandoned', 'reversed'].includes(result.status)) { payment.status = result.status; save(); notifyPayment(payment, user, 'failed'); }
           return send(res, 200, { status: result.status || 'pending' }), true;
         }
         // Only accept it if the amount and currency are exactly what we asked for.
         if (result.amount !== payment.amount || String(result.currency).toUpperCase() !== payment.currency) {
-          payment.status = 'mismatch'; save();
+          payment.status = 'mismatch'; save(); notifyPayment(payment, user, 'failed');
           return send(res, 402, { error: 'The amount paid does not match the plan price. Please contact support.' }), true;
         }
-        payment.status = 'success';
-        payment.paidAt = result.paid_at || new Date().toISOString();
-        const firstActivation = user.status !== 'verified';
-        // Renewing early extends the current period instead of losing the days that are left.
-        const base = user.plan !== 'trial' && user.subscriptionEndsAt && Date.parse(user.subscriptionEndsAt) > Date.now() ? Date.parse(user.subscriptionEndsAt) : Date.now();
-        user.status = 'verified';
-        user.plan = payment.planId;
-        user.paidAt = payment.paidAt;
-        user.verifiedAt = user.verifiedAt || new Date().toISOString();
-        user.subscriptionEndsAt = new Date(base + subscriptionDays() * DAY).toISOString();
-        save();
-        if (firstActivation) welcomeDetails(user, 'paid').then((details) => sendWelcomeEmail('institution', user.email, user.name, user.institutionName, details)).catch((cause) => console.error('Welcome email failed:', cause.message));
+        activate(payment, user, result);
         send(res, 200, { status: 'success', plan: payment.planId, user: publicUser(user) });
       } catch (error) {
         console.error('Payment verify failed:', error.message);

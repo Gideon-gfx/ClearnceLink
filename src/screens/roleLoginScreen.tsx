@@ -1,3 +1,5 @@
+import BackArrow from '../components/BackArrow';
+import TextLink from '../components/TextLink';
 import { useRef, useState } from 'react';
 import KeyboardScreen from '../components/KeyboardScreen';
 import ErrorBanner from '../components/ErrorBanner';
@@ -76,9 +78,7 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
           <Path d={`M 0 0 C 0 ${18 * curveScale} ${width * 0.12} ${20 * curveScale} ${width * 0.28} ${15 * curveScale} C ${width * 0.52} ${8 * curveScale} ${width * 0.74} ${4 * curveScale} ${width * 0.88} ${19 * curveScale} C ${width * 0.96} ${27 * curveScale} ${width * 0.995} ${39 * curveScale} ${width} ${waveHeight} L ${width} ${waveHeight + 1} L 0 ${waveHeight + 1} Z`} fill="white" />
         </Svg>
         <View style={{ position: 'absolute', top: panelTop - leftRise + waveHeight, left: 0, right: 0, bottom: 0, backgroundColor: 'white' }} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Go back to welcome" onPress={goBackAnimated} style={{ position: 'absolute', left: 18, top: 46, width: 40, height: 42, justifyContent: 'center' }}>
-          <Ionicons name="chevron-back" size={22} color="white" />
-        </Pressable>
+        <BackArrow onPress={goBackAnimated} label="Go back to welcome" size={22} color="white" style={{ position: 'absolute', left: 18, top: 46, width: 40, height: 42, justifyContent: 'center' }} />
       </View>
       <Image
         source={require('../assets/campus-footer.png')}
@@ -97,13 +97,13 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
             <Ionicons name={remember ? 'checkbox' : 'square-outline'} size={16} color="#6819d4" style={{ marginRight: 6 }} />
             <Text style={{ fontSize: 11, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_500Medium' : undefined }}>Remember me</Text>
           </Pressable>
-          <Pressable onPress={onForgot}><Text style={{ fontSize: 13, color: '#6318d1', fontFamily: fontsLoaded ? 'Inter_600SemiBold' : undefined }}>Forgot password?</Text></Pressable>
+          <TextLink onPress={onForgot} color="#6318d1" style={{ fontSize: 13, fontWeight: undefined, fontFamily: fontsLoaded ? 'Inter_600SemiBold' : undefined }}>Forgot password?</TextLink>
         </View>
         <ErrorBanner message={error} />
         <PrimaryButton title={busy ? 'Logging in...' : 'Login'} onPress={busy ? undefined : submit} />
         <View style={{ marginTop: 25, alignItems: 'center', gap: 4 }}>
           <Text style={{ fontSize: 14, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_400Regular' : undefined }}>Don’t have an account?</Text>
-          <Pressable onPress={onRegister}><Text style={{ fontSize: 14, color: '#6115d0', fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{mode === 'institution' ? 'Register your institution' : `Create ${role.toLowerCase()} account`}</Text></Pressable>
+          <TextLink onPress={onRegister} color="#6115d0" style={{ fontSize: 14, fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{mode === 'institution' ? 'Register your institution' : `Create ${role.toLowerCase()} account`}</TextLink>
         </View>
       </KeyboardScreen>
     </SafeAreaView></Animated.View>

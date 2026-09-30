@@ -161,11 +161,11 @@ function createHandler({ data, save, send, readJson, files }) {
     if (record.email && [...ownStudents(user), ...ownStaff(user)].some((item) => item.email === record.email)) issues.push('Email already belongs to a person');
     return issues;
   }
-  function createPerson(user, kind, record) {
+  function createPerson(user, kind, record, quiet = false) {
     const common = { id: crypto.randomUUID(), institutionId: user.id, institutionName: user.institutionName, ...record, status: 'pending', approved: false, deliveryStatus: 'pending', disabled: false, createdAt: now() };
     if (kind === 'student') { common.clearanceId = accessId(user, kind); common.matricNo = null; common.session = user.session || '2026/2027'; data.students.push(common); }
     else { common.accessId = accessId(user, kind); common.role = null; common.scope = null; common.assignments = []; data.staff.push(common); }
-    audit(user, kind === 'student' ? 'Student added' : 'Staff added', common.name);
+    if (!quiet) audit(user, kind === 'student' ? 'Student added' : 'Staff added', common.name);
     return common;
   }
   const automaticStudentQueue = [];
@@ -374,10 +374,13 @@ function createHandler({ data, save, send, readJson, files }) {
     if (kind && id === 'import' && action === 'validate' && req.method === 'POST') {
       const input = await readJson(req, 15_000_000);
       const rows = await spreadsheetRows(input.filename, input.base64);
+      if (kind === 'staff' && rows.length && !Object.keys(rows[0].record).some((header) => ['institutionstaffid', 'staffid', 'staffidnumber', 'institutionstaffnumber', 'staffnumber', 'employeeid', 'employeeidnumber'].includes(header))) {
+        send(res, 400, { error: 'Staff ID column not found. Name it “Institution Staff ID” or “Staff ID” in the first row, then upload again.' }); return true;
+      }
       const seen = new Set();
       const resultRows = rows.map(({ line, record }) => {
         const normalized = Object.fromEntries(Object.entries(record).map(([k, v]) => [k, v]));
-        const person = kind === 'student' ? studentInput({ name: normalized.fullname, jamb: normalized.jambregistrationnumber, email: normalized.email, phone: normalized.phonenumber, faculty: normalized.facultyschool, department: normalized.department, programme: normalized.programme, entryLevel: normalized.entrylevel, level: normalized.currentlevel, admissionYear: normalized.admissionyear, admissionStatus: normalized.admissionstatus }) : staffInput({ name: normalized.fullname, staffId: normalized.institutionstaffid, email: normalized.email, phone: normalized.phonenumber, faculty: normalized.faculty, department: normalized.department, jobTitle: normalized.jobtitle });
+        const person = kind === 'student' ? studentInput({ name: normalized.fullname, jamb: normalized.jambregistrationnumber, email: normalized.email, phone: normalized.phonenumber, faculty: normalized.facultyschool, department: normalized.department, programme: normalized.programme, entryLevel: normalized.entrylevel, level: normalized.currentlevel, admissionYear: normalized.admissionyear, admissionStatus: normalized.admissionstatus }) : staffInput({ name: normalized.fullname, staffId: normalized.institutionstaffid || normalized.staffid || normalized.staffidnumber || normalized.institutionstaffnumber || normalized.staffnumber || normalized.employeeid || normalized.employeeidnumber, email: normalized.email, phone: normalized.phonenumber, faculty: normalized.faculty, department: normalized.department, jobTitle: normalized.jobtitle });
         const issues = validation(user, kind, person, seen);
         return { line, person, issues, status: issues.some((issue) => issue.startsWith('Duplicate')) ? 'duplicate' : issues.length ? 'correction' : 'valid' };
       });
@@ -392,9 +395,9 @@ function createHandler({ data, save, send, readJson, files }) {
       const validRows = batch.rows.filter((row) => row.status === 'valid');
       if (kind === 'student' && overStudentLimit(user, validRows.length)) { send(res, 402, { error: limitMessage(user, 'student') }); return true; }
       if (kind === 'staff' && overStaffLimit(user, validRows.length)) { send(res, 402, { error: limitMessage(user, 'staff') }); return true; }
-      const created = validRows.map((row) => createPerson(user, kind, row.person));
+      const created = validRows.map((row) => createPerson(user, kind, row.person, true));
       if (kind === 'student') created.forEach((item) => { item.approved = true; item.status = 'ready'; item.autoDelivery = true; item.deliveryStatus = 'queued'; });
-      batch.committed = true; batch.committedAt = now(); audit(user, `${kind} import completed`, `${created.length} records`); save();
+      batch.committed = true; batch.committedAt = now(); audit(user, `Imported ${created.length} ${kind === 'student' ? (created.length === 1 ? 'student' : 'students') : 'staff'}`, batch.filename || 'Spreadsheet import'); save();
       send(res, 200, { imported: created.length, items: created, autoDeliveryQueued: kind === 'student' ? created.length : 0 });
       if (kind === 'student') queueStudentEmails(created);
       return true;
@@ -473,6 +476,27 @@ function createHandler({ data, save, send, readJson, files }) {
       if (!staff) { send(res, 404, { error: 'Staff member not found.' }); return true; }
       staff.role = null; staff.scope = null; staff.assignments = []; audit(user, 'Officer authority removed', staff.name); save(); send(res, 200, { item: staff }); return true;
     }
+    // Everything that happens in this institution: its own admin actions plus what its students and staff do.
+    if (route === '/api/institution/notifications' && req.method === 'GET') {
+      const seen = Date.parse(user.notificationsSeenAt || 0) || 0;
+      // Summarised: repeated events of one kind on the same day become a single line ("Student added · 12"), and what
+      // students and staff do is rolled up per action instead of listing every person.
+      const day = (value) => String(value).slice(0, 10);
+      const groups = new Map();
+      for (const item of data.audit.filter((entry) => entry.institutionId === user.id).sort((a, b) => Date.parse(b.at) - Date.parse(a.at))) {
+        const own = item.actor === user.name;
+        const key = `${day(item.at)}|${own ? 'admin' : 'people'}|${item.action}`;
+        const group = groups.get(key);
+        if (group) { group.count += 1; group.targets.push(item.target); if (Date.parse(item.at) > Date.parse(group.at)) group.at = item.at; continue; }
+        groups.set(key, { id: item.id || key, action: item.action, own, actor: own ? item.actor : 'Students and staff', target: item.target, detail: item.detail || '', at: item.at, count: 1, targets: [item.target] });
+      }
+      const items = [...groups.values()].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 100).map((group) => ({
+        id: group.id, action: group.count > 1 ? `${group.action} · ${group.count}` : group.action, actor: group.actor,
+        target: group.count > 1 ? `${group.count} records` : group.target, detail: group.detail, at: group.at, unread: Date.parse(group.at) > seen,
+      }));
+      send(res, 200, { items, unread: items.filter((item) => item.unread).length }); return true;
+    }
+    if (route === '/api/institution/notifications/seen' && req.method === 'POST') { user.notificationsSeenAt = now(); save(); send(res, 200, { unread: 0 }); return true; }
     if (route === '/api/institution/oversight' && req.method === 'GET') {
       const students = ownStudents(user);
       const submissions = (data.submissions || []).filter((item) => students.some((student) => student.id === item.studentId));

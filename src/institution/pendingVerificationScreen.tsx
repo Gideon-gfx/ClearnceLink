@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StatusBar, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import TextLink from '../components/TextLink';
 import { INK, MUTED, PURPLE } from '../student/ui';
 import PaymentPanel from './paymentPanel';
 
@@ -11,10 +12,7 @@ export default function PendingVerificationScreen({ session, onPaid, onSignOut }
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
-      <Pressable accessibilityRole="button" accessibilityLabel="Back to login" onPress={onSignOut} style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 14, marginLeft: 14, paddingVertical: 8, paddingHorizontal: 8 }}>
-        <Ionicons name="chevron-back" size={22} color={PURPLE} />
-        <Text style={{ marginLeft: 2, fontSize: 15, fontWeight: '700', color: PURPLE }}>Back to Login</Text>
-      </Pressable>
+      <View style={{ alignSelf: 'flex-start', marginTop: 14, marginLeft: 14, paddingVertical: 8, paddingHorizontal: 8 }}><TextLink accessibilityLabel="Back to login" onPress={onSignOut} color={PURPLE} left={<Ionicons name="chevron-back" size={22} color={PURPLE} />} style={{ marginLeft: 2, fontSize: 15 }}>Back to Login</TextLink></View>
       <PaymentPanel
         token={session.token} signedIn renewing={expired} onDone={(user) => onPaid(user)}
         header={<>

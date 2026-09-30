@@ -48,7 +48,8 @@ export default function StudentApp({ session, onSignOut }) {
         const params = { clearanceId: clearance.id, requirementId: requirement.id };
         if (requirement.status === 'action_required') go('rejected', params);
         else if (requirement.status === 'cleared') go('cleared', params);
-        else go('requirement', params);
+        // A document that has not been uploaded yet opens the file picker straight away.
+        else go('requirement', { ...params, autoPick: requirement.kind === 'upload' && requirement.status === 'not_started' });
       },
     };
   }, [token, overview, version, back, reloadOverview, onSignOut]);

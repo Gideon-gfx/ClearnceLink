@@ -7,8 +7,10 @@ import { apiBaseUrl } from '../api';
 import ErrorBanner from '../components/ErrorBanner';
 import { useSignOut } from '../components/useSignOut';
 import { C, Card, Heading, ScreenTitle, useLogoUri } from './ui';
+import { LinearGradient } from 'expo-linear-gradient';
+import { planSummary, planTheme } from './plansScreen';
 
-const actions = [['Tuition Structure', 'cash-outline', 'tuition'], ['Institution Settings', 'settings-outline', 'settings'], ['Completion Actions', 'gift-outline', 'completion'], ['Digital Stamp', 'ribbon-outline', 'stamp'], ['Generated Student IDs', 'key-outline', 'review-student-ids'], ['Generated Staff IDs', 'id-card-outline', 'review-staff-ids'], ['Audit History', 'time-outline', 'activity']];
+const actions = [['Institution Settings', 'settings-outline', 'settings'], ['Completion Actions', 'gift-outline', 'completion'], ['Digital Stamp', 'ribbon-outline', 'stamp'], ['Generated Student IDs', 'key-outline', 'review-student-ids'], ['Generated Staff IDs', 'id-card-outline', 'review-staff-ids'], ['Notifications', 'notifications-outline', 'activity']];
 async function toBase64(uri) {
   const blob = await (await fetch(uri)).blob();
   return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(String(reader.result).split(',')[1]); reader.onerror = () => reject(new Error('Could not read the selected image.')); reader.readAsDataURL(blob); });
@@ -47,7 +49,19 @@ export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onNavi
           <View style={{ position: 'absolute', right: -6, bottom: -6, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: C.purple, borderWidth: 2, borderColor: 'white' }}><Ionicons name="camera" size={15} color="white" /></View>
         </View>
         <Text style={{ marginTop: 12, color: C.ink, fontSize: 19, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', textAlign: 'center' }}>{user?.institutionName}</Text>
-        <Text style={{ marginTop: 3, color: C.muted, fontSize: 13 }}>Institution Administrator</Text>
+        {(() => {
+          const theme = planTheme(user?.plan); const tone = user?.expired ? C.red : theme.color; const rich = user?.plan === 'enterprise' && !user?.expired;
+          const chip = <>
+            <Ionicons name={theme.icon} size={15} color={rich ? 'white' : tone} />
+            <Text style={{ marginLeft: 6, color: rich ? 'white' : tone, fontSize: 12.5, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{planSummary(user)}</Text>
+            <Ionicons name="chevron-forward" size={14} color={rich ? 'white' : tone} style={{ marginLeft: 3 }} />
+          </>;
+          const shape = { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16 } as const;
+          return <Pressable accessibilityRole="button" accessibilityLabel="Current plan. View plans or upgrade" onPress={() => onNavigate('plans')}>
+            {rich ? <LinearGradient colors={theme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={shape}>{chip}</LinearGradient> : <View style={{ ...shape, backgroundColor: theme.tint, borderWidth: 1.5, borderColor: tone }}>{chip}</View>}
+          </Pressable>;
+        })()}
+        <Text style={{ marginTop: 8, color: C.muted, fontSize: 13 }}>Institution Administrator</Text>
         <Text style={{ marginTop: 8, color: C.purple, fontSize: 12, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>Tap the logo to view or replace it</Text>
       </Card>
     </Pressable>
