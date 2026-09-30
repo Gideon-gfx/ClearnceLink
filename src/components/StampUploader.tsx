@@ -1,0 +1,103 @@
+import { useEffect, useState } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import * as ImagePicker from 'expo-image-picker';
+import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native';
+import { apiBaseUrl } from '../api';
+import ErrorBanner from './ErrorBanner';
+
+const MAX_BYTES = 1.5 * 1024 * 1024;
+
+async function toBase64(uri: string) {
+  const blob = await (await fetch(uri)).blob();
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = () => reject(new Error('Could not read the selected image.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Upload / preview / remove a digital stamp or signature. `basePath` is '/api/staff' or '/api/institution'.
+export default function StampUploader({ basePath, token, title = 'Digital stamp / signature', description }) {
+  const [stamp, setStamp] = useState(undefined); // undefined = loading, null = none
+  const [version, setVersion] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const headers = { Authorization: `Bearer ${token}` };
+
+  useEffect(() => {
+    let live = true;
+    fetch(`${apiBaseUrl}${basePath}/stamp`, { headers })
+      .then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Could not load your stamp.'); return body; })
+      .then((body) => live && setStamp(body.stamp))
+      .catch((cause) => { if (live) { setStamp(null); setError(cause.message); } });
+    return () => { live = false; };
+  }, [basePath, token]);
+
+  const upload = async () => {
+    setError('');
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    const mimeType = asset.mimeType || (/\.png$/i.test(asset.uri) ? 'image/png' : 'image/jpeg');
+    if (!['image/png', 'image/jpeg'].includes(mimeType)) { setError('Please choose a PNG or JPG image.'); return; }
+    if (asset.fileSize && asset.fileSize > MAX_BYTES) { setError('The image must be under 1.5MB.'); return; }
+    setBusy(true);
+    try {
+      const response = await fetch(`${apiBaseUrl}${basePath}/stamp`, {
+        method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: asset.fileName || 'stamp', mimeType, base64: await toBase64(asset.uri) }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Could not upload the stamp.');
+      setStamp(body.stamp);
+      setVersion((value) => value + 1);
+    } catch (cause) { setError(cause.message); }
+    finally { setBusy(false); }
+  };
+
+  const remove = async () => {
+    setError('');
+    setBusy(true);
+    try {
+      const response = await fetch(`${apiBaseUrl}${basePath}/stamp`, { method: 'DELETE', headers });
+      if (!response.ok) throw new Error((await response.json()).error || 'Could not remove the stamp.');
+      setStamp(null);
+    } catch (cause) { setError(cause.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <View style={{ backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#e6e3f7', padding: 14 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+        <Ionicons name="ribbon-outline" size={20} color="#5a17c9" style={{ marginRight: 8 }} />
+        <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: '#171548' }}>{title}</Text>
+      </View>
+      <Text style={{ fontSize: 12, lineHeight: 18, color: '#6e6b91', marginBottom: 12 }}>
+        {description || 'Upload your stamp or signature. It is added to every document you clear, in a stamped PDF copy. PNG with a transparent background looks best.'}
+      </Text>
+      <View style={{ height: 120, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#cfc6f2', backgroundColor: '#faf8ff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+        {stamp === undefined ? <ActivityIndicator color="#5a17c9" /> : stamp ? (
+          <Image key={version} source={{ uri: `${apiBaseUrl}${basePath}/stamp/image?v=${version}`, headers }} resizeMode="contain" style={{ width: '80%', height: '85%' }} />
+        ) : (
+          <>
+            <Ionicons name="image-outline" size={30} color="#b9a4f2" />
+            <Text style={{ marginTop: 4, fontSize: 12, color: '#8f8bab' }}>No stamp uploaded yet</Text>
+          </>
+        )}
+      </View>
+      <ErrorBanner message={error} style={{ marginBottom: 10 }} />
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Pressable accessibilityRole="button" onPress={busy ? undefined : upload} style={{ flex: 1, height: 46, borderRadius: 12, backgroundColor: '#5a17c9', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', opacity: busy ? 0.7 : 1 }}>
+          <Ionicons name="cloud-upload-outline" size={18} color="white" style={{ marginRight: 6 }} />
+          <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>{busy ? 'Please wait...' : stamp ? 'Replace stamp' : 'Upload stamp'}</Text>
+        </Pressable>
+        {stamp ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Remove stamp" onPress={busy ? undefined : remove} style={{ width: 46, height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: '#fecaca', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="trash-outline" size={19} color="#dc2626" />
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
