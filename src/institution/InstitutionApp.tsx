@@ -49,8 +49,8 @@ export default function InstitutionApp({ session, onSignOut }) {
     case 'add-staff': body = <AddStaffScreen api={api} onBack={back} onSaved={(item) => go('staff-detail', { id: item.id })} />; break;
     case 'import-students': body = <ImportStudentsScreen api={api} onBack={back} onManual={() => go('add-student')} onValidated={(batch) => go('import-results', { batch })} />; break;
     case 'import-staff': body = <ImportStaffScreen api={api} onBack={back} onManual={() => go('add-staff')} onValidated={(batch) => go('import-results', { batch })} />; break;
-    case 'import-results': body = <ImportResultsScreen api={api} batch={current.params.batch} onBack={back} onCommitted={() => go(current.params.batch.kind === 'students' ? 'review-student-ids' : 'review-staff-ids')} />; break;
-    case 'review-student-ids': body = <ReviewStudentIdsScreen api={api} onBack={back} onOpen={(id) => go('student-detail', { id })} />; break;
+    case 'import-results': body = <ImportResultsScreen api={api} batch={current.params.batch} onBack={back} onCommitted={(result) => go(current.params.batch.kind === 'students' ? 'review-student-ids' : 'review-staff-ids', { autoDeliveryQueued: result.autoDeliveryQueued || 0 })} />; break;
+    case 'review-student-ids': body = <ReviewStudentIdsScreen api={api} autoDeliveryQueued={current.params.autoDeliveryQueued} onBack={back} onOpen={(id) => go('student-detail', { id })} />; break;
     case 'review-staff-ids': body = <ReviewStaffIdsScreen api={api} onBack={back} onOpen={(id) => go('staff-detail', { id })} />; break;
     case 'student-detail': body = <StudentDetailScreen api={api} id={current.params.id} onBack={back} />; break;
     case 'staff-detail': body = <StaffDetailScreen api={api} id={current.params.id} onBack={back} onAssignRole={(staffId) => go('assign-role', { staffId })} />; break;

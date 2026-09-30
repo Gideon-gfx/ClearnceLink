@@ -168,6 +168,48 @@ function createHandler({ data, save, send, readJson, files }) {
     audit(user, kind === 'student' ? 'Student added' : 'Staff added', common.name);
     return common;
   }
+  const automaticStudentQueue = [];
+  const queuedStudentIds = new Set();
+  let automaticStudentDeliveryRunning = false;
+  function queueStudentEmails(students) {
+    for (const student of students) {
+      if (!queuedStudentIds.has(student.id)) { queuedStudentIds.add(student.id); automaticStudentQueue.push(student.id); }
+    }
+    if (!automaticStudentDeliveryRunning && automaticStudentQueue.length) setImmediate(deliverQueuedStudentEmails);
+  }
+  async function deliverQueuedStudentEmails() {
+    if (automaticStudentDeliveryRunning) return;
+    automaticStudentDeliveryRunning = true;
+    try {
+      while (automaticStudentQueue.length) {
+        const id = automaticStudentQueue.shift();
+        queuedStudentIds.delete(id);
+        const student = data.students.find((item) => item.id === id);
+        if (!student?.autoDelivery || !['queued', 'sending'].includes(student.deliveryStatus)) continue;
+        student.deliveryStatus = 'sending'; save();
+        if (undeliverable(student.email)) {
+          student.deliveryStatus = 'failed'; student.deliveryError = PLACEHOLDER_EMAIL_MESSAGE; save(); continue;
+        }
+        if ((!process.env.SMTP_HOST || !process.env.SMTP_FROM) && (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD)) {
+          student.deliveryStatus = 'failed'; student.deliveryError = 'Email delivery is not configured. Set up Gmail or SMTP, then resend.'; save(); continue;
+        }
+        try {
+          const info = await sendAccessIdEmail(student.email, student.name, student.clearanceId, 'student', student.institutionName);
+          if (info?.rejected?.length) throw new Error('The email provider rejected this address.');
+          student.deliveryStatus = 'delivered'; student.deliveredAt = now(); delete student.deliveryError;
+        } catch (cause) {
+          student.deliveryStatus = 'failed'; student.deliveryError = 'The email could not be sent to this address. Check it and resend.';
+          console.error(`Automatic Clearance ID email to ${student.email} failed: ${cause.message}`);
+        }
+        save();
+      }
+    } finally {
+      automaticStudentDeliveryRunning = false;
+      if (automaticStudentQueue.length) setImmediate(deliverQueuedStudentEmails);
+    }
+  }
+  // Resume emails left in progress if the API was restarted during an import.
+  setImmediate(() => queueStudentEmails(data.students.filter((item) => item.autoDelivery && ['queued', 'sending'].includes(item.deliveryStatus))));
   async function template(res, kind, format) {
     const columns = kind === 'student' ? STUDENT_COLUMNS : STAFF_COLUMNS;
     if (format === 'csv') {
@@ -351,8 +393,11 @@ function createHandler({ data, save, send, readJson, files }) {
       if (kind === 'student' && overStudentLimit(user, validRows.length)) { send(res, 402, { error: limitMessage(user, 'student') }); return true; }
       if (kind === 'staff' && overStaffLimit(user, validRows.length)) { send(res, 402, { error: limitMessage(user, 'staff') }); return true; }
       const created = validRows.map((row) => createPerson(user, kind, row.person));
+      if (kind === 'student') created.forEach((item) => { item.approved = true; item.status = 'ready'; item.autoDelivery = true; item.deliveryStatus = 'queued'; });
       batch.committed = true; batch.committedAt = now(); audit(user, `${kind} import completed`, `${created.length} records`); save();
-      send(res, 200, { imported: created.length, items: created }); return true;
+      send(res, 200, { imported: created.length, items: created, autoDeliveryQueued: kind === 'student' ? created.length : 0 });
+      if (kind === 'student') queueStudentEmails(created);
+      return true;
     }
     if (kind && id === 'approve' && req.method === 'POST') {
       const input = await readJson(req);
@@ -362,7 +407,7 @@ function createHandler({ data, save, send, readJson, files }) {
     }
     if (kind && id === 'send' && req.method === 'POST') {
       const input = await readJson(req);
-      const selected = (kind === 'student' ? ownStudents(user) : ownStaff(user)).filter((item) => item.approved && item.deliveryStatus !== 'delivered' && (input.all || (Array.isArray(input.ids) && input.ids.includes(item.id))));
+      const selected = (kind === 'student' ? ownStudents(user) : ownStaff(user)).filter((item) => item.approved && !['delivered', 'queued', 'sending'].includes(item.deliveryStatus) && (input.all || (Array.isArray(input.ids) && input.ids.includes(item.id))));
       if ((!process.env.SMTP_HOST || !process.env.SMTP_FROM) && (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD)) { send(res, 503, { error: 'Email delivery is not configured. Approved IDs remain pending; configure SMTP to send them.' }); return true; }
       const results = [];
       for (const item of selected.slice(0, 100)) {
@@ -380,6 +425,7 @@ function createHandler({ data, save, send, readJson, files }) {
     if (kind && id && action === 'resend' && req.method === 'POST') {
       const item = own(list, user, id);
       if (!item) { send(res, 404, { error: 'Record not found.' }); return true; }
+      if (['queued', 'sending'].includes(item.deliveryStatus)) { send(res, 409, { error: 'This Clearance ID email is already being sent. Check its status shortly.' }); return true; }
       if (!item.email) { send(res, 400, { error: 'Add an email address first, then save the contact.' }); return true; }
       if (undeliverable(item.email)) { send(res, 400, { error: PLACEHOLDER_EMAIL_MESSAGE }); return true; }
       if ((!process.env.SMTP_HOST || !process.env.SMTP_FROM) && (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD)) { send(res, 503, { error: 'Email delivery is not configured.' }); return true; }

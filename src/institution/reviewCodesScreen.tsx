@@ -6,16 +6,16 @@ import { Pressable, Text, View } from 'react-native';
 import { useConfirm } from '../components/ConfirmSheet';
 import { C, Card, Empty, Heading, Message, Page, Pill, Primary, Secondary } from './ui';
 
-export default function ReviewCodesScreen({ api, kind, onBack, onOpen }) {
+export default function ReviewCodesScreen({ api, kind, onBack, onOpen, autoDeliveryQueued = 0 }) {
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState([]);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState(autoDeliveryQueued ? `${autoDeliveryQueued} Clearance ID emails are being sent automatically.` : '');
   const [busy, setBusy] = useState(false);
   const student = kind === 'students';
   const { confirm, sheet } = useConfirm();
   const load =() => api.request(`/${kind}`).then((result) => setItems(result.items)).catch((cause) => setError(cause.message));
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); const timer = setInterval(load, 5000); return () => clearInterval(timer); }, []);
   const allSelected = items.length > 0 && selected.length === items.length;
   const someSelected = selected.length > 0 && !allSelected;
   const toggleAll = () => setSelected(allSelected ? [] : items.map((item) => item.id));
@@ -35,9 +35,9 @@ export default function ReviewCodesScreen({ api, kind, onBack, onOpen }) {
     } catch (cause) { setError(cause.message); } finally { setBusy(false); }
   };
   const send = () => {
-    const targets = (selected.length ? items.filter((item) => selected.includes(item.id)) : items).filter((item) => item.deliveryStatus !== 'delivered');
+    const targets = (selected.length ? items.filter((item) => selected.includes(item.id)) : items).filter((item) => !['delivered', 'queued', 'sending'].includes(item.deliveryStatus));
     const unapproved = targets.filter((item) => !item.approved);
-    if (!targets.length) { setError(''); setNotice(selected.length ? 'Everyone selected has already received their code.' : 'Every code has already been delivered.'); return; }
+    if (!targets.length) { setError(''); setNotice('These IDs are already delivered or are being sent automatically.'); return; }
     if (!unapproved.length) { sendCodes(false, targets.map((item) => item.id)); return; }
     const approvedCount = targets.length - unapproved.length;
     const everyone = unapproved.length === targets.length;
@@ -64,7 +64,7 @@ export default function ReviewCodesScreen({ api, kind, onBack, onOpen }) {
     {!items.length ? <Empty title="No generated IDs yet" detail={student ? 'Add or import students to generate IDs.' : 'Add or import staff to generate access IDs.'} /> : items.map((item) => <Card key={item.id}><View style={{ flexDirection: 'row', alignItems: 'center' }}>
       <Pressable onPress={() => toggle(item.id)} style={{ width: 32, justifyContent: 'center' }}><Ionicons name={selected.includes(item.id) ? 'checkbox' : 'square-outline'} size={22} color={C.purple} /></Pressable>
       <Pressable onPress={() => onOpen(item.id)} style={{ flex: 1 }}><Text style={{ color: C.ink, fontSize: 12, fontFamily: 'Inter_600SemiBold' }}>{item.name}</Text><Text style={{ marginTop: 3, color: C.muted, fontSize: 10 }}>{item.department}</Text><Text style={{ marginTop: 4, color: C.purple, fontSize: 11, fontFamily: 'Inter_700Bold' }}>{student ? item.clearanceId : item.accessId}</Text>{item.deliveryStatus === 'failed' && item.deliveryError ? <Text style={{ marginTop: 4, color: C.red, fontSize: 10, lineHeight: 14 }}>{item.deliveryError}</Text> : null}</Pressable>
-      <Pill tone={item.deliveryStatus === 'delivered' ? 'green' : item.deliveryStatus === 'failed' ? 'red' : item.approved ? 'purple' : 'amber'}>{item.deliveryStatus === 'delivered' ? 'Delivered' : item.deliveryStatus === 'failed' ? 'Failed' : item.approved ? 'Ready' : 'Needs Review'}</Pill>
+      <Pill tone={item.deliveryStatus === 'delivered' ? 'green' : item.deliveryStatus === 'failed' ? 'red' : item.approved ? 'purple' : 'amber'}>{item.deliveryStatus === 'delivered' ? 'Delivered' : item.deliveryStatus === 'failed' ? 'Failed' : item.deliveryStatus === 'queued' ? 'Queued' : item.deliveryStatus === 'sending' ? 'Sending' : item.approved ? 'Ready' : 'Needs Review'}</Pill>
     </View></Card>)}
     {items.length ? <View style={{ gap: 7, marginTop: 10 }}><Secondary title={`Approve Selected (${selected.length})`} icon="checkmark-outline" onPress={() => approve(false)} /><Secondary title="Approve All" icon="checkmark-done-outline" onPress={() => approve(true)} /><Secondary title="Download List" icon="download-outline" onPress={download} /></View> : null}
     {sheet}

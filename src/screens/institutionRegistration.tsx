@@ -300,7 +300,7 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
               {step === 3 && !verifying ? (
                 <Text className="mt-3 text-center text-[10px] leading-4 text-muted">
                   By continuing, you agree to our{'\n'}
-                  <Text className="font-bold text-ink">Terms of Service</Text> and <Text className="font-bold text-ink">Privacy Policy.</Text>
+                  <Text className="font-bold text-ink" onPress={() => Linking.openURL('https://clearancelink.app/terms-of-use')}>Terms of Service</Text> and <Text className="font-bold text-ink" onPress={() => Linking.openURL('https://clearancelink.app/privacy-policy')}>Privacy Policy.</Text>
                 </Text>
               ) : null}
             </View>
