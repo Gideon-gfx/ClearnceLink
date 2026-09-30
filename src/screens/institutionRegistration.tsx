@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import KeyboardScreen from '../components/KeyboardScreen';
 import ErrorBanner from '../components/ErrorBanner';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import { readFileAsBase64 } from '../components/readFile';
 import countryList from 'country-list';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Animated, BackHandler, Easing, Image, Platform, Pressable, StatusBar, Text, TextInput, useWindowDimensions, View } from 'react-native';
@@ -144,7 +144,7 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
       if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setRegistrationError('Logo must be under 2MB.'); return; }
-      const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      const base64 = await readFileAsBase64(asset.uri);
       setInstitutionLogo(asset.uri);
       setLogoFile({ name: asset.fileName || 'institution-logo.png', mimeType: asset.mimeType || 'image/png', base64 });
     }

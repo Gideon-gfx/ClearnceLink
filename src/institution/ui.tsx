@@ -32,8 +32,8 @@ export function BrandHeader({ name, subtitle, onNotify, logoUrl, token }) {
   const showLogo = Boolean(logoUri);
   return <View style={{ height: 84, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 17, borderBottomWidth: 1, borderColor: C.line, backgroundColor: 'white' }}>
     {/* The institution's own uploaded logo; the purple school icon only shows if none was uploaded or it could not load. */}
-    <View style={{ width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: showLogo ? 'white' : C.purple, borderWidth: showLogo ? 1 : 0, borderColor: C.line, overflow: 'hidden' }}>
-      {showLogo ? <Image source={{ uri: logoUri }} style={{ width: 52, height: 52 }} resizeMode="contain" accessibilityLabel="Institution logo" /> : <Ionicons name="school" size={30} color="white" />}
+    <View style={{ width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: showLogo ? 'white' : C.purple, borderWidth: showLogo ? 1 : 0, borderColor: C.line, overflow: 'hidden' }}>
+      {showLogo ? <Image source={{ uri: logoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" accessibilityLabel="Institution logo" /> : <Ionicons name="school" size={30} color="white" />}
     </View>
     <View style={{ flex: 1, marginLeft: 12 }}><Text numberOfLines={2} style={{ fontSize: 18, lineHeight: 22, color: C.ink, fontFamily: 'Inter_800ExtraBold', fontWeight: '800' }}>{name}</Text><Text style={{ marginTop: 2, fontSize: 12, color: C.muted, fontFamily: 'Inter_500Medium' }}>{subtitle}</Text></View>
     <Pressable accessibilityRole="button" accessibilityLabel="Notifications" onPress={onNotify} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="notifications-outline" size={25} color={C.ink} /></Pressable>
@@ -50,7 +50,7 @@ export function ScreenTitle({ title, onBack }) {
 }
 
 export function BottomNav({ current, onSelect }) {
-  const items = [['home', 'Home', 'speedometer-outline'], ['students', 'Students', 'people-outline'], ['staff', 'Staff', 'people-circle-outline'], ['oversight', 'Oversight', 'eye-outline'], ['more', 'More', 'menu-outline']];
+  const items = [['home', 'Home', 'speedometer-outline'], ['students', 'Students', 'people-outline'], ['staff', 'Staff', 'people-circle-outline'], ['oversight', 'Oversight', 'shield-checkmark-outline'], ['more', 'More', 'menu-outline']];
   return <View style={{ height: 70, flexDirection: 'row', borderTopWidth: 1, borderColor: C.line, backgroundColor: 'white' }}>
     {items.map(([id, label, icon]) => <Pressable key={id} accessibilityRole="button" onPress={() => onSelect(id)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
       <Ionicons name={current === id ? icon.replace('-outline', '') : icon} size={25} color={current === id ? C.purple : '#7779A6'} />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import { readFileAsBase64 } from '../components/readFile';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { C, Card, Heading, Input, Message, Secondary } from './ui';
 
@@ -12,7 +12,7 @@ async function pickFile(types) {
   if (result.canceled || !result.assets?.[0]) return null;
   const asset = result.assets[0];
   if (asset.size && asset.size > 5 * 1024 * 1024) throw new Error('Choose a file under 5MB.');
-  const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+  const base64 = await readFileAsBase64(asset.uri);
   return { name: asset.name, mimeType: asset.mimeType || 'application/octet-stream', base64 };
 }
 

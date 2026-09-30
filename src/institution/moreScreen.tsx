@@ -41,8 +41,8 @@ export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onNavi
     <Pressable accessibilityRole="button" accessibilityLabel="Institution logo. View or replace" onPress={() => setMenu(true)}>
       <Card style={{ marginTop: 16, alignItems: 'center', backgroundColor: '#F8F5FF' }}>
         <View>
-          <View style={{ width: 84, height: 84, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: logoUri ? 'white' : C.purple, borderWidth: 2, borderColor: C.border, overflow: 'hidden' }}>
-            {uploading ? <ActivityIndicator color={logoUri ? C.purple : 'white'} /> : logoUri ? <Image source={{ uri: logoUri }} style={{ width: 80, height: 80 }} resizeMode="contain" /> : <Ionicons name="school" size={40} color="white" />}
+          <View style={{ width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: logoUri ? 'white' : C.purple, borderWidth: 2, borderColor: C.border, overflow: 'hidden' }}>
+            {uploading ? <ActivityIndicator color={logoUri ? C.purple : 'white'} /> : logoUri ? <Image source={{ uri: logoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" /> : <Ionicons name="school" size={40} color="white" />}
           </View>
           <View style={{ position: 'absolute', right: -6, bottom: -6, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: C.purple, borderWidth: 2, borderColor: 'white' }}><Ionicons name="camera" size={15} color="white" /></View>
         </View>

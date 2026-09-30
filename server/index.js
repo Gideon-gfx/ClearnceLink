@@ -218,6 +218,8 @@ const server = http.createServer(async (req, res) => {
     }
     return send(res, 404, { error: 'Not found.' });
   } catch (error) {
+    // The app only sees a generic message for unexpected failures, so record the real reason here.
+    if (!(error instanceof SyntaxError) && !/Request is too large|spreadsheet|Select a|Import at most|empty/.test(error.message)) console.error(`Request failed: ${req.method} ${route}\n`, error.stack || error);
     return send(res, error instanceof SyntaxError || /Request is too large|spreadsheet|Select a|Import at most|empty/.test(error.message) ? 400 : 500, { error: error instanceof SyntaxError ? 'Invalid JSON.' : /Request is too large|spreadsheet|Select a|Import at most|empty/.test(error.message) ? error.message : 'Request could not be completed.' });
   }
 });
