@@ -8,30 +8,8 @@ import { ActivityIndicator, Animated, FlatList, Easing, Keyboard, Modal, PanResp
 
 export function Field({ label, value, onChangeText, placeholder, keyboardType, multiline, icon, secureTextEntry, login = false, error = false, adornment }) {
   const [passwordVisible, setPasswordVisible] = useState(false);
-  // Android hides a typed password character almost immediately. Masking is done here instead, so the latest character
-  // stays visible for a couple of seconds (enough to check what you typed) before it turns into a dot.
-  const masked = Boolean(secureTextEntry) && !passwordVisible;
-  const [revealAt, setRevealAt] = useState(-1);
-  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current); }, []);
-  const current = String(value ?? '');
-  const display = masked ? current.split('').map((character, index) => (index === revealAt ? character : '•')).join('') : current;
-  const handleChange = (text: string) => {
-    if (!masked) { onChangeText(text); return; }
-    // Work out what changed by comparing what was on screen with what is on screen now.
-    let start = 0;
-    while (start < display.length && start < text.length && display[start] === text[start]) start += 1;
-    let endOld = display.length;
-    let endNew = text.length;
-    while (endOld > start && endNew > start && display[endOld - 1] === text[endNew - 1]) { endOld -= 1; endNew -= 1; }
-    const inserted = text.slice(start, endNew);
-    onChangeText(current.slice(0, start) + inserted + current.slice(endOld));
-    if (revealTimer.current) clearTimeout(revealTimer.current);
-    if (inserted.length === 1) {
-      setRevealAt(start);
-      revealTimer.current = setTimeout(() => setRevealAt(-1), 2000);
-    } else setRevealAt(-1);
-  };
+  // Password fields use the phone's own masking. (A homemade version that kept the last character visible longer rewrote
+  // the text while typing, which some keyboards handle badly and can save or send the wrong password.)
   return (
     <View className="mb-3">
       <Text className="mb-1.5 font-bold text-ink" style={{ fontSize: login ? 16 : 15 }}>{label}</Text>
@@ -39,19 +17,16 @@ export function Field({ label, value, onChangeText, placeholder, keyboardType, m
         {adornment || (icon ? <Ionicons name={icon} size={login ? 21 : 20} color="#8b87a6" style={{ marginRight: 8 }} /> : null)}
         <TextInput
           accessibilityLabel={label}
-          value={display}
-          onChangeText={handleChange}
+          value={value}
+          onChangeText={onChangeText}
           onFocus={notifyFieldFocus}
           placeholder={placeholder}
           placeholderTextColor="#a4a1bc"
+          keyboardType={keyboardType || 'default'}
           multiline={multiline}
-          secureTextEntry={false}
-          autoCorrect={masked ? false : undefined}
-          spellCheck={masked ? false : undefined}
-          keyboardType={masked ? 'visible-password' : keyboardType || 'default'}
-          importantForAutofill={masked ? 'no' : 'auto'}
+          secureTextEntry={secureTextEntry && !passwordVisible}
           autoCapitalize={keyboardType === 'email-address' || secureTextEntry ? 'none' : 'sentences'}
-          autoComplete={secureTextEntry ? 'off' : keyboardType === 'email-address' ? 'email' : 'off'}
+          autoComplete={secureTextEntry ? 'password' : keyboardType === 'email-address' ? 'email' : 'off'}
           textAlignVertical={multiline ? 'top' : 'center'}
           className="h-full flex-1 p-0 text-ink"
           style={{ fontSize: login ? 17 : 16 }}
