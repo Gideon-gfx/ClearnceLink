@@ -5,6 +5,8 @@ import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native';
 import { apiBaseUrl } from '../api';
 import ErrorBanner from './ErrorBanner';
 import useAuthImage from './useAuthImage';
+import { pickStampImage } from './pickStampImage';
+import StampPlacement, { placementLabel } from './StampPlacement';
 
 const MAX_BYTES = 1.5 * 1024 * 1024;
 
@@ -24,6 +26,7 @@ export default function StampUploader({ basePath, token, title = 'Digital stamp 
   const [version, setVersion] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [positioning, setPositioning] = useState(false);
   const headers = { Authorization: `Bearer ${token}` };
   const image = useAuthImage(stamp ? `${apiBaseUrl}${basePath}/stamp/image` : null, token, version);
 
@@ -38,24 +41,27 @@ export default function StampUploader({ basePath, token, title = 'Digital stamp 
 
   const upload = async () => {
     setError('');
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
-    if (result.canceled || !result.assets?.[0]) return;
-    const asset = result.assets[0];
-    const mimeType = asset.mimeType || (/\.png$/i.test(asset.uri) ? 'image/png' : 'image/jpeg');
-    if (!['image/png', 'image/jpeg'].includes(mimeType)) { setError('Please choose a PNG or JPG image.'); return; }
-    if (asset.fileSize && asset.fileSize > MAX_BYTES) { setError('The image must be under 1.5MB.'); return; }
-    setBusy(true);
     try {
+      const picked = await pickStampImage();
+      if (!picked) return;
+      setBusy(true);
       const response = await fetch(`${apiBaseUrl}${basePath}/stamp`, {
         method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: asset.fileName || 'stamp', mimeType, base64: await toBase64(asset.uri) }),
+        body: JSON.stringify({ name: picked.name, mimeType: picked.mimeType, base64: picked.base64 }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Could not upload the stamp.');
       setStamp(body.stamp);
       setVersion((value) => value + 1);
-    } catch (cause) { setError(cause.message); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not upload the stamp.'); }
     finally { setBusy(false); }
+  };
+
+  const savePlacement = async (placement) => {
+    const response = await fetch(`${apiBaseUrl}${basePath}/stamp/placement`, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(placement) });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || 'Could not save the position.');
+    setStamp(body.stamp);
   };
 
   const remove = async () => {
@@ -76,7 +82,7 @@ export default function StampUploader({ basePath, token, title = 'Digital stamp 
         <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: '#171548' }}>{title}</Text>
       </View>
       <Text style={{ fontSize: 12, lineHeight: 18, color: '#6e6b91', marginBottom: 12 }}>
-        {description || 'Upload your stamp or signature. It is added to every document you clear, in a stamped PDF copy. PNG with a transparent background looks best.'}
+        {description || 'Upload your stamp or signature (any picture works) and choose where it goes on the page. It is added to every document you clear, in a stamped PDF copy.'}
       </Text>
       <View style={{ height: 120, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#cfc6f2', backgroundColor: '#faf8ff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
         {stamp === undefined ? <ActivityIndicator color="#5a17c9" /> : stamp ? (
@@ -88,7 +94,9 @@ export default function StampUploader({ basePath, token, title = 'Digital stamp 
           </>
         )}
       </View>
+      {stamp ? <Pressable accessibilityRole="button" onPress={() => setPositioning(true)} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, padding: 12, borderRadius: 12, borderWidth: 1.5, borderColor: '#d6ccf3', backgroundColor: '#faf8ff' }}><Ionicons name="move-outline" size={20} color="#5a17c9" style={{ marginRight: 10 }} /><View style={{ flex: 1 }}><Text style={{ fontSize: 12, color: '#6e6b91' }}>Position on the page</Text><Text style={{ fontSize: 14, fontWeight: '700', color: '#171548' }}>{placementLabel(stamp.placement)}</Text></View><Text style={{ fontSize: 13, fontWeight: '700', color: '#5a17c9' }}>Change</Text></Pressable> : null}
       <ErrorBanner message={error} style={{ marginBottom: 10 }} />
+      <StampPlacement visible={positioning} imageUri={image.uri} value={stamp?.placement} onClose={() => setPositioning(false)} onSave={savePlacement} />
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Pressable accessibilityRole="button" onPress={busy ? undefined : upload} style={{ flex: 1, height: 46, borderRadius: 12, backgroundColor: '#5a17c9', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', opacity: busy ? 0.7 : 1 }}>
           <Ionicons name="cloud-upload-outline" size={18} color="white" style={{ marginRight: 6 }} />

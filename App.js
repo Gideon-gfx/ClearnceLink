@@ -1,6 +1,6 @@
 import './global.css';
 import { useEffect, useState } from 'react';
-import { BackHandler } from 'react-native';
+import { ActivityIndicator, BackHandler, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ScreenTransition } from './src/components/Shared';
 import WelcomeScreen from './src/screens/welcomeScreen';
@@ -16,14 +16,39 @@ import StudentApp from './src/student/StudentApp';
 import StaffApp from './src/staff/StaffApp';
 import InstitutionApp from './src/institution/InstitutionApp';
 import PendingVerificationScreen from './src/institution/pendingVerificationScreen';
+import { BugReportProvider, useBugReport } from './src/components/BugReportShake';
+import { apiRequest } from './src/api';
+import { clearRememberedSession, loadRememberedToken } from './src/components/rememberedSession';
+import { unregisterPushNotifications, usePushNotifications } from './src/components/pushNotifications';
 
 export default function App() {
-  return <SafeAreaProvider><AppScreens /></SafeAreaProvider>;
+  return <SafeAreaProvider><BugReportProvider><AppScreens /></BugReportProvider></SafeAreaProvider>;
 }
 
 function AppScreens() {
   const [screen, setScreen] = useState('welcome');
   const [session, setSession] = useState(null);
+  const [restoring, setRestoring] = useState(true);
+  // "Remember me": if a session was kept, check it is still valid and go straight to the dashboard.
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const token = await loadRememberedToken();
+      if (!token) { if (live) setRestoring(false); return; }
+      try {
+        const result = await apiRequest('/api/auth/me', undefined, token);
+        if (live && result?.user) { setSession({ token, user: result.user }); setScreen('account-home'); }
+      } catch (cause) {
+        // Only forget it when the server says it has expired; if the server is just unreachable, keep it for next time.
+        if (/expired|sign in|log in/i.test(String(cause?.message || ''))) await clearRememberedSession();
+      } finally { if (live) setRestoring(false); }
+    })();
+    return () => { live = false; };
+  }, []);
+  const signOut = () => { void unregisterPushNotifications(session?.token); clearRememberedSession(); setSession(null); setScreen('welcome'); };
+  usePushNotifications(session);
+  const { setLocation } = useBugReport();
+  useEffect(() => { setLocation({ screen, role: session?.user?.role || 'guest', token: session?.token || null }); }, [screen, session, setLocation]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -38,6 +63,7 @@ function AppScreens() {
     return () => subscription.remove();
   }, [screen, session]);
 
+  if (restoring) return <View style={{ flex: 1, backgroundColor: '#5a17c9', alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color="white" size="large" /></View>;
   if (screen === 'welcome') return <ScreenTransition key={screen}><WelcomeScreen onSelectMode={(mode) => setScreen(`${mode}-login`)} /></ScreenTransition>;
   if (screen === 'student-access') return <ScreenTransition key={screen}><StudentAccess onBack={() => setScreen('student-login')} onDone={() => setScreen('student-login')} /></ScreenTransition>;
   if (screen === 'staff-access') return <ScreenTransition key={screen}><StaffAccess onBack={() => setScreen('staff-login')} onDone={(result) => { setSession(result); setScreen('account-home'); }} /></ScreenTransition>;
@@ -56,10 +82,10 @@ function AppScreens() {
     return <ScreenTransition key={screen}><ForgotPasswordScreen mode={mode} onBack={() => setScreen(`${mode}-login`)} onComplete={() => setScreen(`${mode}-login`)} /></ScreenTransition>;
   }
   if (screen === 'institution-register') return <InstitutionRegistrationScreen onExit={() => setScreen('institution-login')} onPaid={() => setScreen('institution-login')} />;
-  if (screen === 'account-home' && session?.user?.role === 'student') return <StudentApp session={session} onSignOut={() => { setSession(null); setScreen('welcome'); }} />;
-  if (screen === 'account-home' && session?.user?.role === 'staff') return <StaffApp session={session} onSignOut={() => { setSession(null); setScreen('welcome'); }} />;
-  if (screen === 'account-home' && session?.user?.role === 'institution' && (session.user.status !== 'verified' || session.user.expired)) return <PendingVerificationScreen session={session} onPaid={(user) => setSession({ ...session, user })} onSignOut={() => { setSession(null); setScreen('institution-login'); }} />;
-  if (screen === 'account-home' && session?.user?.role === 'institution') return <InstitutionApp session={session} onSessionChange={(user) => setSession({ ...session, user })} onSignOut={() => { setSession(null); setScreen('welcome'); }} />;
-  if (screen === 'account-home') return <ScreenTransition key={screen}><AccountHomeScreen user={session?.user} onSignOut={() => { setSession(null); setScreen('welcome'); }} /></ScreenTransition>;
+  if (screen === 'account-home' && session?.user?.role === 'student') return <StudentApp session={session} onSignOut={signOut} />;
+  if (screen === 'account-home' && session?.user?.role === 'staff') return <StaffApp session={session} onSignOut={signOut} />;
+  if (screen === 'account-home' && session?.user?.role === 'institution' && (session.user.status !== 'verified' || session.user.expired)) return <PendingVerificationScreen session={session} onPaid={(user) => setSession({ ...session, user })} onSignOut={() => { clearRememberedSession(); setSession(null); setScreen('institution-login'); }} />;
+  if (screen === 'account-home' && session?.user?.role === 'institution') return <InstitutionApp session={session} onSessionChange={(user) => setSession({ ...session, user })} onSignOut={signOut} />;
+  if (screen === 'account-home') return <ScreenTransition key={screen}><AccountHomeScreen user={session?.user} onSignOut={signOut} /></ScreenTransition>;
   return null;
 }

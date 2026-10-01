@@ -1,6 +1,6 @@
 import BackArrow from '../components/BackArrow';
 import TextLink from '../components/TextLink';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import KeyboardScreen from '../components/KeyboardScreen';
 import ErrorBanner from '../components/ErrorBanner';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -10,10 +10,11 @@ import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
-import { Animated, Easing, Image, Platform, Pressable, ScrollView, StatusBar, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Easing, Image, Keyboard, LayoutAnimation, Platform, Pressable, ScrollView, StatusBar, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Field, PrimaryButton } from '../components/Shared';
 import { apiRequest } from '../api';
+import { clearRememberedSession, saveRememberedSession } from '../components/rememberedSession';
 
 export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin }) {
   const [email, setEmail] = useState('');
@@ -22,6 +23,13 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const backOffset = useRef(new Animated.Value(0)).current;
+  // While the keyboard is up, the tall purple header is swapped for a slim bar so the fields have room above the keyboard.
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => { LayoutAnimation.easeInEaseOut(); setKeyboardOpen(true); });
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => { LayoutAnimation.easeInEaseOut(); setKeyboardOpen(false); });
+    return () => { show.remove(); hide.remove(); };
+  }, []);
   const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
   const { width, height } = useWindowDimensions();
   const role = mode === 'institution' ? 'Institution' : mode === 'staff' ? 'Staff' : 'Student';
@@ -38,13 +46,23 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setError('Enter a valid email address.'); return; }
     setError('');
     setBusy(true);
-    try { const result = await apiRequest('/api/auth/login', { role: mode, email: email.trim(), password }); onLogin(result); }
+    try {
+      const result = await apiRequest('/api/auth/login', { role: mode, email: email.trim(), password });
+      if (remember) await saveRememberedSession(result); else await clearRememberedSession();
+      onLogin(result);
+    }
     catch (cause) { setError(cause.message); }
     finally { setBusy(false); }
   };
   return (
     <Animated.View style={{ flex: 1, backgroundColor: 'white', transform: [{ translateX: backOffset }] }}><SafeAreaView style={{ flex: 1, backgroundColor: 'white' }} edges={Platform.OS === 'android' ? ['left', 'right', 'bottom'] : undefined}>
       <StatusBar barStyle="light-content" backgroundColor="#5a17c9" />
+      {keyboardOpen ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', height: 78, paddingHorizontal: 14, backgroundColor: '#5a17c9' }}>
+          <BackArrow onPress={goBackAnimated} label="Go back to welcome" size={26} color="white" style={{ width: 44, height: 48, justifyContent: 'center' }} />
+          <Text style={{ flex: 1, textAlign: 'center', marginRight: 44, fontSize: 18, color: 'white', fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{portal}</Text>
+        </View>
+      ) : (
       <View style={{ height: panelTop + waveHeight + 12, overflow: 'hidden', backgroundColor: '#5a17c9' }}>
         <Svg width={width} height={panelTop + waveHeight + 12} style={{ position: 'absolute', top: 0, left: 0 }} pointerEvents="none">
           <Defs>
@@ -80,14 +98,15 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
         <View style={{ position: 'absolute', top: panelTop - leftRise + waveHeight, left: 0, right: 0, bottom: 0, backgroundColor: 'white' }} />
         <BackArrow onPress={goBackAnimated} label="Go back to welcome" size={22} color="white" style={{ position: 'absolute', left: 18, top: 46, width: 40, height: 42, justifyContent: 'center' }} />
       </View>
-      <Image
+      )}
+      {keyboardOpen ? null : <Image
         source={require('../assets/campus-footer.png')}
         resizeMode="stretch"
         pointerEvents="none"
         accessibilityLabel="University campus building"
         style={{ position: 'absolute', left: 0, bottom: 0, width, height: 155 * headerScale, opacity: 0.78 }}
-      />
-      <KeyboardScreen style={{ marginTop: -36 * headerScale, zIndex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 25, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+      />}
+      <KeyboardScreen style={{ marginTop: keyboardOpen ? 14 : -36 * headerScale, zIndex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 25, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
         <Text style={{ marginTop: 2, textAlign: 'center', fontSize: 22, color: '#171548', fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{role} Login</Text>
         <Text style={{ marginTop: 7, marginBottom: 22, textAlign: 'center', fontSize: 12, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_400Regular' : undefined }}>{mode === 'institution' ? 'Access your institution dashboard.' : `Access your ${role.toLowerCase()} account.`}</Text>
         <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label={mode === 'institution' ? 'Work Email' : 'Email'} value={email} onChangeText={setEmail} placeholder="name@institution.edu" keyboardType="email-address" icon="mail-outline" /></View>

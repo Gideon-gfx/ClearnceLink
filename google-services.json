@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "596135936008",
+    "project_id": "clearancelink",
+    "storage_bucket": "clearancelink.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:596135936008:android:1d70e711718dbacdbe11bd",
+        "android_client_info": {
+          "package_name": "com.gideongfx.clearancelink"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB93ZzLDVmvucJNSakFZ-VGmfHI-mneme0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

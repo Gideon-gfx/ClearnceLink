@@ -4,8 +4,9 @@ const path = require('node:path');
 const { Readable } = require('node:stream');
 const ExcelJS = require('exceljs');
 const { sendAccessIdEmail } = require('./mailer');
-const { saveStamp, removeStamp } = require('./stamp');
+const { saveStamp, removeStamp, setPlacement } = require('./stamp');
 const { plans, limitsFor, isExpired } = require('./subscription');
+const { pushTo } = require('./push');
 
 const STUDENT_COLUMNS = ['Full Name', 'JAMB Registration Number', 'Email', 'Phone Number', 'Faculty / School', 'Department', 'Programme', 'Entry Level', 'Current Level', 'Admission Year', 'Admission Status'];
 const STAFF_COLUMNS = ['Full Name', 'Institution Staff ID', 'Email', 'Phone Number', 'Faculty', 'Department', 'Job Title'];
@@ -103,8 +104,8 @@ function createHandler({ data, save, send, readJson, files }) {
   }
   if (corrected) save();
   const now = () => new Date().toISOString();
-  const audit = (user, action, target, detail = '') => data.audit.unshift({ id: crypto.randomUUID(), institutionId: user.id, actor: user.name, action, target, detail, at: now() });
-  const notifyStudent = (student, type, title, body) => { data.notifications ||= []; data.notifications.unshift({ id: crypto.randomUUID(), studentId: student.id, type, title, body, read: false, createdAt: now() }); };
+  const audit = (user, action, target, detail = '', actor = user.name) => data.audit.unshift({ id: crypto.randomUUID(), institutionId: user.id, actor, action, target, detail, at: now() });
+  const notifyStudent = (student, type, title, body) => { data.notifications ||= []; data.notifications.unshift({ id: crypto.randomUUID(), studentId: student.id, type, title, body, read: false, createdAt: now() }); void pushTo('student', student.id, title, body, { type }); };
   const COMPLETION_DEFAULTS = { idCardMode: 'none', location: '', date: '', hours: '', instructions: '', certificate: true, matric: true, custom: '' };
   // The plan caps how many people an institution can hold (small during the free trial, larger per paid tier).
   const overStudentLimit = (user, adding) => ownStudents(user).length + adding > limitsFor(user).students;
@@ -129,7 +130,7 @@ function createHandler({ data, save, send, readJson, files }) {
   }
   function studentInput(input) {
     return {
-      name: clean(input.name || input.fullName), jamb: clean(input.jamb || input.jambRegistrationNumber), email: email(input.email),
+      name: clean(input.name || input.fullName), jamb: clean(input.jamb || input.jambRegistrationNumber), matricNo: clean(input.matricNo || input.matriculationNumber), email: email(input.email),
       phone: clean(input.phone || input.phoneNumber), faculty: clean(input.faculty || input.facultySchool),
       department: clean(input.department), programme: clean(input.programme), entryLevel: clean(input.entryLevel || '100'),
       level: clean(input.level || input.currentLevel || '100'), admissionYear: clean(input.admissionYear),
@@ -139,19 +140,22 @@ function createHandler({ data, save, send, readJson, files }) {
   function staffInput(input) {
     return { name: clean(input.name || input.fullName), staffId: clean(input.staffId || input.institutionStaffId), email: email(input.email), phone: clean(input.phone || input.phoneNumber), faculty: clean(input.faculty), department: clean(input.department), jobTitle: clean(input.jobTitle) };
   }
-  function validation(user, kind, record, seen) {
+  function validation(user, kind, record, seen, acting) {
     const issues = [];
     if (!record.name) issues.push('Full name is required');
     if (!validEmail(record.email)) issues.push('Valid email is required');
     if (!record.department) issues.push('Department is required');
     if (kind === 'student') {
-      if (!record.jamb) issues.push('JAMB registration number is required');
+      if (!record.jamb && !(acting && record.matricNo)) issues.push(acting ? 'JAMB registration or matriculation number is required' : 'JAMB registration number is required');
       if (!record.programme) issues.push('Programme is required');
       if (!/^\d{3}$/.test(record.level)) issues.push('Current level must be 100, 200, 300...');
       if (!/^\d{4}$/.test(record.admissionYear)) issues.push('Admission year is required');
       if (record.jamb && ownStudents(user).some((item) => item.jamb.toLowerCase() === record.jamb.toLowerCase())) issues.push('Duplicate JAMB number');
       if (record.jamb && seen.has(record.jamb.toLowerCase())) issues.push('Duplicate JAMB number in file');
       if (record.jamb) seen.add(record.jamb.toLowerCase());
+      if (record.matricNo && ownStudents(user).some((item) => clean(item.matricNo).toLowerCase() === record.matricNo.toLowerCase())) issues.push('Duplicate matriculation number');
+      if (record.matricNo && seen.has(`matric:${record.matricNo.toLowerCase()}`)) issues.push('Duplicate matriculation number in file');
+      if (record.matricNo) seen.add(`matric:${record.matricNo.toLowerCase()}`);
     } else {
       if (!record.staffId) issues.push('Institution staff ID is required');
       if (record.staffId && ownStaff(user).some((item) => item.staffId.toLowerCase() === record.staffId.toLowerCase())) issues.push('Duplicate staff ID');
@@ -161,11 +165,11 @@ function createHandler({ data, save, send, readJson, files }) {
     if (record.email && [...ownStudents(user), ...ownStaff(user)].some((item) => item.email === record.email)) issues.push('Email already belongs to a person');
     return issues;
   }
-  function createPerson(user, kind, record, quiet = false) {
-    const common = { id: crypto.randomUUID(), institutionId: user.id, institutionName: user.institutionName, ...record, status: 'pending', approved: false, deliveryStatus: 'pending', disabled: false, createdAt: now() };
-    if (kind === 'student') { common.clearanceId = accessId(user, kind); common.matricNo = null; common.session = user.session || '2026/2027'; data.students.push(common); }
+  function createPerson(user, kind, record, quiet = false, acting = null) {
+    const common = { id: crypto.randomUUID(), institutionId: user.id, institutionName: user.institutionName, ...record, status: 'pending', approved: false, deliveryStatus: 'pending', disabled: false, createdAt: now(), ...(acting ? { addedBy: acting.staff.id, addedByName: acting.staff.name } : {}) };
+    if (kind === 'student') { common.clearanceId = accessId(user, kind); common.matricNo ||= null; common.session = user.session || '2026/2027'; data.students.push(common); }
     else { common.accessId = accessId(user, kind); common.role = null; common.scope = null; common.assignments = []; data.staff.push(common); }
-    if (!quiet) audit(user, kind === 'student' ? 'Student added' : 'Staff added', common.name);
+    if (!quiet) audit(user, kind === 'student' ? 'Student added' : 'Staff added', common.name, '', acting ? acting.staff.name : user.name);
     return common;
   }
   const automaticStudentQueue = [];
@@ -210,8 +214,8 @@ function createHandler({ data, save, send, readJson, files }) {
   }
   // Resume emails left in progress if the API was restarted during an import.
   setImmediate(() => queueStudentEmails(data.students.filter((item) => item.autoDelivery && ['queued', 'sending'].includes(item.deliveryStatus))));
-  async function template(res, kind, format) {
-    const columns = kind === 'student' ? STUDENT_COLUMNS : STAFF_COLUMNS;
+  async function template(res, kind, format, acting) {
+    const columns = kind === 'student' ? acting ? [...STUDENT_COLUMNS, 'Matriculation Number'] : STUDENT_COLUMNS : STAFF_COLUMNS;
     if (format === 'csv') {
       res.writeHead(200, { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${kind}-import-template.csv"`, 'Access-Control-Allow-Origin': '*' });
       return res.end(`${columns.join(',')}\r\n`);
@@ -225,13 +229,21 @@ function createHandler({ data, save, send, readJson, files }) {
     res.writeHead(200, { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="${kind}-import-template.xlsx"`, 'Access-Control-Allow-Origin': '*' });
     return res.end(Buffer.from(buffer));
   }
-  return async function handleInstitution(req, res, route) {
+  // `acting` is { institution, staff }: a staff member adding their own students. They get only the student routes below,
+  // limited to students they added themselves, in their own department.
+  return async function handleInstitution(req, res, route, acting = null) {
     if (!route.startsWith('/api/institution/')) return false;
-    const user = currentUser(req);
+    const user = acting ? acting.institution : currentUser(req);
     if (!user) { send(res, 401, { error: 'Sign in as an institution administrator.' }); return true; }
     if (user.status !== 'verified') { send(res, 403, { error: 'Choose a plan to activate your institution.', code: 'plan_required' }); return true; }
     // When a trial or subscription ends the workspace is locked, but nothing is deleted: renewing brings it all back.
-    if (isExpired(user)) { send(res, 403, { error: 'Your subscription has expired. Your data is safe: renew to continue managing clearance activities.', code: 'subscription_expired' }); return true; }
+    if (isExpired(user)) { send(res, 403, { error: acting ? 'Your institution’s subscription has expired. Ask your administrator to renew it.' : 'Your subscription has expired. Your data is safe: renew to continue managing clearance activities.', code: 'subscription_expired' }); return true; }
+    if (acting) {
+      const allowed = (route === '/api/institution/students' && ['GET', 'POST'].includes(req.method)) || route === '/api/institution/students/template' || route.startsWith('/api/institution/students/import/') || /^\/api\/institution\/students\/[\w-]+\/resend$/.test(route);
+      if (!allowed) { send(res, 403, { error: 'Staff can only add and import their own students.' }); return true; }
+    }
+    // A staff member's students always belong to the staff member's own department and faculty.
+    const constrain = (record) => { if (acting) { record.department = acting.staff.department || record.department; record.faculty = acting.staff.faculty || record.faculty; } return record; };
     if (route === '/api/institution/logo' && req.method === 'GET') {
       const logo = user.attachments?.logo;
       const content = logo && await files.get(logo.fileId);
@@ -258,7 +270,7 @@ function createHandler({ data, save, send, readJson, files }) {
     }
     // ---- Digital stamp: added to every document that gets cleared for this institution's students ----
     if (route === '/api/institution/stamp' && req.method === 'GET') {
-      send(res, 200, { stamp: user.stamp ? { name: user.stamp.name, mimeType: user.stamp.mimeType, size: user.stamp.size, updatedAt: user.stamp.updatedAt } : null }); return true;
+      send(res, 200, { stamp: user.stamp ? { name: user.stamp.name, mimeType: user.stamp.mimeType, size: user.stamp.size, updatedAt: user.stamp.updatedAt, placement: user.stamp.placement || { mode: 'default', size: 'medium', x: 0.5, y: 0.5 } } : null }); return true;
     }
     if (route === '/api/institution/stamp/image' && req.method === 'GET') {
       const content = user.stamp?.fileId && await files.get(user.stamp.fileId);
@@ -266,11 +278,19 @@ function createHandler({ data, save, send, readJson, files }) {
       res.writeHead(200, { 'Content-Type': user.stamp.mimeType, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });
       res.end(content); return true;
     }
+    if (route === '/api/institution/stamp/placement' && req.method === 'PUT') {
+      try {
+        const stamp = await setPlacement({ owner: user, input: await readJson(req), now });
+        save();
+        send(res, 200, { stamp: { name: stamp.name, mimeType: stamp.mimeType, size: stamp.size, updatedAt: stamp.updatedAt, placement: stamp.placement } });
+      } catch (error) { send(res, error.status || 400, { error: error.status ? error.message : 'Could not save the position.' }); }
+      return true;
+    }
     if (route === '/api/institution/stamp' && req.method === 'PUT') {
       try {
         const stamp = await saveStamp({ files, owner: user, input: await readJson(req, 3_000_000), now });
         audit(user, 'Institution stamp uploaded', user.institutionName); save();
-        send(res, 200, { stamp: { name: stamp.name, mimeType: stamp.mimeType, size: stamp.size, updatedAt: stamp.updatedAt } });
+        send(res, 200, { stamp: { name: stamp.name, mimeType: stamp.mimeType, size: stamp.size, updatedAt: stamp.updatedAt, placement: stamp.placement } });
       } catch (error) { send(res, error.status || 400, { error: error.status ? error.message : 'Request is too large or invalid.' }); }
       return true;
     }
@@ -358,19 +378,21 @@ function createHandler({ data, save, send, readJson, files }) {
     if (kind && !id && req.method === 'GET') {
       const search = clean(url.searchParams.get('search')).toLowerCase();
       const status = clean(url.searchParams.get('status'));
-      const people = (kind === 'student' ? ownStudents(user) : ownStaff(user)).filter((item) => (!search || [item.name, item.email, item.department, item.jamb, item.staffId, item.clearanceId, item.accessId].some((v) => clean(v).toLowerCase().includes(search))) && (!status || status === 'all' || item.status === status));
+      const people = (kind === 'student' ? ownStudents(user) : ownStaff(user)).filter((item) => (!acting || item.addedBy === acting.staff.id) && (!search || [item.name, item.email, item.department, item.jamb, item.matricNo, item.staffId, item.clearanceId, item.accessId].some((v) => clean(v).toLowerCase().includes(search))) && (!status || status === 'all' || item.status === status));
       send(res, 200, { items: people }); return true;
     }
     if (kind && !id && req.method === 'POST') {
       const input = await readJson(req);
-      const record = kind === 'student' ? studentInput(input) : staffInput(input);
-      const issues = validation(user, kind, record, new Set());
+      const record = constrain(kind === 'student' ? studentInput(input) : staffInput(input));
+      const issues = validation(user, kind, record, new Set(), acting);
       if (issues.length) { send(res, 400, { error: issues.join('. ') }); return true; }
       if (kind === 'student' && overStudentLimit(user, 1)) { send(res, 402, { error: limitMessage(user, 'student') }); return true; }
       if (kind === 'staff' && overStaffLimit(user, 1)) { send(res, 402, { error: limitMessage(user, 'staff') }); return true; }
-      const item = createPerson(user, kind, record); save(); send(res, 201, { item }); return true;
+      const item = createPerson(user, kind, record, false, acting);
+      if (acting) { item.approved = true; item.status = 'ready'; item.autoDelivery = true; item.deliveryStatus = 'queued'; }
+      save(); send(res, 201, { item }); if (acting) queueStudentEmails([item]); return true;
     }
-    if (kind && id === 'template' && req.method === 'GET') { await template(res, kind, url.searchParams.get('format') || 'xlsx'); return true; }
+    if (kind && id === 'template' && req.method === 'GET') { await template(res, kind, url.searchParams.get('format') || 'xlsx', acting); return true; }
     if (kind && id === 'import' && action === 'validate' && req.method === 'POST') {
       const input = await readJson(req, 15_000_000);
       const rows = await spreadsheetRows(input.filename, input.base64);
@@ -380,24 +402,25 @@ function createHandler({ data, save, send, readJson, files }) {
       const seen = new Set();
       const resultRows = rows.map(({ line, record }) => {
         const normalized = Object.fromEntries(Object.entries(record).map(([k, v]) => [k, v]));
-        const person = kind === 'student' ? studentInput({ name: normalized.fullname, jamb: normalized.jambregistrationnumber, email: normalized.email, phone: normalized.phonenumber, faculty: normalized.facultyschool, department: normalized.department, programme: normalized.programme, entryLevel: normalized.entrylevel, level: normalized.currentlevel, admissionYear: normalized.admissionyear, admissionStatus: normalized.admissionstatus }) : staffInput({ name: normalized.fullname, staffId: normalized.institutionstaffid || normalized.staffid || normalized.staffidnumber || normalized.institutionstaffnumber || normalized.staffnumber || normalized.employeeid || normalized.employeeidnumber, email: normalized.email, phone: normalized.phonenumber, faculty: normalized.faculty, department: normalized.department, jobTitle: normalized.jobtitle });
-        const issues = validation(user, kind, person, seen);
+        const person = kind === 'student' ? studentInput({ name: normalized.fullname, jamb: normalized.jambregistrationnumber, matricNo: normalized.matriculationnumber || normalized.matricno || normalized.matricnumber, email: normalized.email, phone: normalized.phonenumber, faculty: normalized.facultyschool, department: normalized.department, programme: normalized.programme, entryLevel: normalized.entrylevel, level: normalized.currentlevel, admissionYear: normalized.admissionyear, admissionStatus: normalized.admissionstatus }) : staffInput({ name: normalized.fullname, staffId: normalized.institutionstaffid || normalized.staffid || normalized.staffidnumber || normalized.institutionstaffnumber || normalized.staffnumber || normalized.employeeid || normalized.employeeidnumber, email: normalized.email, phone: normalized.phonenumber, faculty: normalized.faculty, department: normalized.department, jobTitle: normalized.jobtitle });
+        constrain(person);
+        const issues = validation(user, kind, person, seen, acting);
         return { line, person, issues, status: issues.some((issue) => issue.startsWith('Duplicate')) ? 'duplicate' : issues.length ? 'correction' : 'valid' };
       });
-      const batch = { id: crypto.randomUUID(), institutionId: user.id, kind, filename: clean(input.filename), rows: resultRows, createdAt: now(), committed: false };
+      const batch = { id: crypto.randomUUID(), institutionId: user.id, kind, filename: clean(input.filename), rows: resultRows, createdAt: now(), committed: false, ...(acting ? { staffId: acting.staff.id } : {}) };
       data.imports.push(batch); save();
       const counts = { detected: resultRows.length, valid: resultRows.filter((row) => row.status === 'valid').length, correction: resultRows.filter((row) => row.status === 'correction').length, duplicates: resultRows.filter((row) => row.status === 'duplicate').length };
       send(res, 200, { batchId: batch.id, counts, issues: resultRows.filter((row) => row.status !== 'valid').slice(0, 200) }); return true;
     }
     if (kind && id === 'import' && action && req.method === 'POST') {
-      const batch = data.imports.find((item) => item.id === action && item.institutionId === user.id && item.kind === kind);
+      const batch = data.imports.find((item) => item.id === action && item.institutionId === user.id && item.kind === kind && (!acting || item.staffId === acting.staff.id));
       if (!batch || batch.committed) { send(res, 404, { error: 'Import batch not found or already committed.' }); return true; }
       const validRows = batch.rows.filter((row) => row.status === 'valid');
       if (kind === 'student' && overStudentLimit(user, validRows.length)) { send(res, 402, { error: limitMessage(user, 'student') }); return true; }
       if (kind === 'staff' && overStaffLimit(user, validRows.length)) { send(res, 402, { error: limitMessage(user, 'staff') }); return true; }
-      const created = validRows.map((row) => createPerson(user, kind, row.person, true));
+      const created = validRows.map((row) => createPerson(user, kind, row.person, true, acting));
       if (kind === 'student') created.forEach((item) => { item.approved = true; item.status = 'ready'; item.autoDelivery = true; item.deliveryStatus = 'queued'; });
-      batch.committed = true; batch.committedAt = now(); audit(user, `Imported ${created.length} ${kind === 'student' ? (created.length === 1 ? 'student' : 'students') : 'staff'}`, batch.filename || 'Spreadsheet import'); save();
+      batch.committed = true; batch.committedAt = now(); audit(user, `Imported ${created.length} ${kind === 'student' ? (created.length === 1 ? 'student' : 'students') : 'staff'}`, batch.filename || 'Spreadsheet import', '', acting ? acting.staff.name : user.name); save();
       send(res, 200, { imported: created.length, items: created, autoDeliveryQueued: kind === 'student' ? created.length : 0 });
       if (kind === 'student') queueStudentEmails(created);
       return true;
@@ -427,7 +450,7 @@ function createHandler({ data, save, send, readJson, files }) {
     // Sends (or re-sends) one person's ID straight away, even if it was delivered before, and reports the real outcome.
     if (kind && id && action === 'resend' && req.method === 'POST') {
       const item = own(list, user, id);
-      if (!item) { send(res, 404, { error: 'Record not found.' }); return true; }
+      if (!item || (acting && item.addedBy !== acting.staff.id)) { send(res, 404, { error: 'Record not found.' }); return true; }
       if (['queued', 'sending'].includes(item.deliveryStatus)) { send(res, 409, { error: 'This Clearance ID email is already being sent. Check its status shortly.' }); return true; }
       if (!item.email) { send(res, 400, { error: 'Add an email address first, then save the contact.' }); return true; }
       if (undeliverable(item.email)) { send(res, 400, { error: PLACEHOLDER_EMAIL_MESSAGE }); return true; }

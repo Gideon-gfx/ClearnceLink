@@ -5,10 +5,10 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { C, Empty, Pill, Primary, ScreenTitle, Search, Secondary, Segments } from './ui';
 
 // Students and Staff share this screen. It has its own header (back arrow + title) instead of the institution banner.
-export default function PeopleList({ api, kind, onNavigate, onBack }) {
+export default function PeopleList({ api, kind, initialFilter = 'All', onNavigate, onBack }) {
   const student = kind === 'students';
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('All');
+  const [filter, setFilter] = useState(initialFilter);
   const [items, setItems] = useState([]);
   const [error, setError] = useState('');
   useEffect(() => {

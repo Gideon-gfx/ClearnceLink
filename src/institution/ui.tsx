@@ -61,13 +61,14 @@ export function BottomNav({ current, onSelect }) {
   </View>;
 }
 
-export function Page({ title, subtitle, onBack, children, footer, noScroll = false }) {
-  return <SafeAreaView style={{ flex: 1, backgroundColor: '#FCFBFF' }}>
+export function Page({ title, subtitle, onBack, children, footer, noScroll = false, nested = false }) {
+  const Container = nested ? View : SafeAreaView;
+  return <Container style={{ flex: 1, backgroundColor: '#FCFBFF' }}>
     <StatusBar barStyle="dark-content" backgroundColor="white" />
     <ScreenTitle title={title} onBack={onBack} />
     {noScroll ? <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 17 }}>{subtitle ? <Text style={{ color: C.muted, fontSize: 14, lineHeight: 20, marginBottom: 16 }}>{subtitle}</Text> : null}{children}</View> : <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 17, paddingBottom: 30 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>{subtitle ? <Text style={{ color: C.muted, fontSize: 14, lineHeight: 20, marginBottom: 16 }}>{subtitle}</Text> : null}{children}</ScrollView>}
     {footer ? <View style={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 15, backgroundColor: 'white', borderTopWidth: 1, borderColor: C.line }}>{footer}</View> : null}
-  </SafeAreaView>;
+  </Container>;
 }
 
 export function Card({ children, style }) { return <View style={[{ backgroundColor: 'white', borderWidth: 2, borderColor: C.border, borderRadius: 14, padding: 16, marginBottom: 10 }, style]}>{children}</View>; }

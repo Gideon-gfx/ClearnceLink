@@ -51,6 +51,7 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPhone, setAdminPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // Slide 3 cannot be submitted until every field is filled in; unfilled or invalid ones get a red border.
   const [showErrors, setShowErrors] = useState(false);
@@ -60,6 +61,7 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
     email: !/^\S+@\S+\.\S+$/.test(adminEmail.trim()),
     phone: !/^\+\d{1,4}\s/.test(adminPhone) || adminPhone.replace(/^\+\d+\s?/, '').replace(/\D/g, '').length < 6,
     password: !passwordIsStrong(password),
+    confirm: confirmPassword !== password || !confirmPassword,
   };
   const adminHasErrors = Object.values(adminInvalid).some(Boolean);
   const FILL_MESSAGE = 'Please fill in all the highlighted fields.';
@@ -287,7 +289,8 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
               <Field label="Work Email" value={adminEmail} onChangeText={setAdminEmail} placeholder="admin@yourinstitution.edu" keyboardType="email-address" icon="mail-outline" error={showErrors && adminInvalid.email} />
               <PhoneField label="Phone Number" value={adminPhone} onChangeText={setAdminPhone} error={showErrors && adminInvalid.phone} />
               <Field label="Password" value={password} onChangeText={setPassword} placeholder="Create a strong password" secureTextEntry icon="lock-closed-outline" error={showErrors && adminInvalid.password} />
-              {password ? <PasswordChecklist password={password} /> : null}
+              <Field label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Re-enter your password" secureTextEntry icon="lock-closed-outline" error={showErrors && adminInvalid.confirm} />
+              {password || confirmPassword ? <PasswordChecklist password={password} confirm={confirmPassword} /> : null}
             </>
           ) : null}
           {step < 4 ? (

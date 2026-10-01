@@ -6,6 +6,8 @@ import { Image, Pressable, RefreshControl, ScrollView, Text, TextInput, View } f
 import { apiRequest } from '../api';
 import InstitutionLogo from '../components/InstitutionLogo';
 import BackArrow from '../components/BackArrow';
+import { useBugReport } from '../components/BugReportShake';
+import FolderExport from './FolderExport';
 import { Card, INK, LINE, MUTED, PURPLE, ProgressBar, RaisedPress, SolidButton, StatusBadge, TabTitle, fileSource, shortName, timeAgo } from './ui';
 
 function greeting() {
@@ -144,6 +146,41 @@ export function ClearancesScreen({ app }) {
   );
 }
 
+export function ClearedTabScreen({ app }) {
+  const groups = app.overview.clearances.map((clearance) => ({
+    clearance,
+    approved: clearance.stages.flatMap((stage) => stage.requirements.filter((requirement) => requirement.status === 'cleared').map((requirement) => ({ stage, requirement }))),
+  })).filter((group) => group.approved.length);
+  // Everything that has been cleared, as one zip: the stamped copy where there is one, otherwise the original upload.
+  const files = groups.flatMap(({ approved }) => approved.filter(({ requirement }) => requirement.submission?.fileId).map(({ requirement }) => {
+    const sub = requirement.submission;
+    return sub.stampedFileId ? { fileId: sub.stampedFileId, fileName: sub.fileName || requirement.name, stamped: true } : { fileId: sub.fileId, fileName: sub.fileName || requirement.name, stamped: false };
+  }));
+  const total = groups.reduce((sum, group) => sum + group.approved.length, 0);
+  return <View style={{ flex: 1, backgroundColor: 'white' }}>
+    <TabTitle title="Cleared" onBack={() => app.setTab('home')} />
+    <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 24 }} refreshControl={useRefresh(app)}>
+      {groups.length ? <>
+        {groups.map(({ clearance, approved }) => (
+          <Card key={clearance.id} style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 18, fontFamily: 'Inter_700Bold', color: INK }}>{clearance.name}</Text>
+            <Text style={{ fontSize: 13, color: MUTED, marginTop: 4, marginBottom: 6 }}>{approved.length} cleared · {clearance.session}</Text>
+            {approved.map(({ stage, requirement }) => <Pressable key={requirement.id} onPress={() => app.go('cleared', { clearanceId: clearance.id, requirementId: requirement.id })} style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderColor: LINE, paddingVertical: 13 }}>
+              <Ionicons name="checkmark-circle" size={22} color="#16a34a" />
+              <View style={{ flex: 1, marginLeft: 10 }}><Text style={{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: INK }}>{requirement.name}</Text><Text style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{stage.name}{requirement.submission?.stampedFileId ? ' · Stamped copy ready' : ''}</Text></View>
+              <Ionicons name="chevron-forward" size={18} color={MUTED} />
+            </Pressable>)}
+          </Card>
+        ))}
+      </> : <Text style={{ color: MUTED, textAlign: 'center', fontSize: 15, marginTop: 40 }}>Your approved documents will appear here after a clearance officer clears them.</Text>}
+    </ScrollView>
+    {groups.length ? <View style={{ padding: 14, paddingTop: 12, borderTopWidth: 1, borderColor: LINE, backgroundColor: 'white' }}>
+      <Text style={{ textAlign: 'center', fontSize: 13, color: MUTED, marginBottom: 8 }}>{total} {total === 1 ? 'document' : 'documents'} cleared</Text>
+      <FolderExport files={files} defaultName="Cleared Documents" token={app.token} title="Download Zip" />
+    </View> : null}
+  </View>;
+}
+
 const NOTE_ICONS = {
   assigned: ['document-text', PURPLE], approved: ['checkmark-circle', '#16a34a'], rejected: ['alert-circle', '#dc2626'],
   completed: ['ribbon', '#16a34a'], idcard: ['card', PURPLE], matric: ['school', PURPLE],
@@ -186,7 +223,8 @@ export function NotificationsScreen({ app }) {
 }
 
 export function ProfileScreen({ app }) {
-  const [signingOut, askSignOut] = useSignOut(app.signOut);
+  const { open: openBugReport } = useBugReport();
+  const [signingOut, askSignOut, signOutSheet] = useSignOut(app.signOut);
   const student = app.overview.student;
   const photo = app.overview.clearances.flatMap((item) => item.stages).flatMap((stage) => stage.requirements).find((item) => item.id === 'passport-photo' && item.submission?.fileId && item.submission.mimeType.startsWith('image/'));
   const rows = [['Clearance ID', student.clearanceId], ['Programme', student.programme], ['Department', student.department], ['Faculty', student.faculty], ['Level', `${student.level} Level`], ['JAMB Reg. No.', student.jamb], ['Matric No.', student.matricNo || 'To be assigned'], ['Email', student.email], ['Phone', student.phone]];
@@ -210,7 +248,8 @@ export function ProfileScreen({ app }) {
         ))}
       </Card>
       {app.overview.clearances.some((item) => item.status === 'completed' && item.completion?.idCard) ? <><SolidButton variant="outline" icon="card-outline" title="Student ID Card" onPress={() => app.go('idcard')} /><View style={{ height: 10 }} /></> : null}
-      <SolidButton variant="outline" icon="log-out-outline" title="Sign Out" busy={signingOut} onPress={askSignOut} />
+      <SolidButton variant="outline" icon="bug-outline" title="Report a bug" onPress={openBugReport} /><View style={{ height: 10 }} />
+      <><SolidButton variant="outline" icon="log-out-outline" title="Sign Out" busy={signingOut} onPress={askSignOut} />{signOutSheet}</>
     </ScrollView>
     </View>
   );

@@ -388,4 +388,22 @@ async function sendTrialReminderEmail(to, name, institutionName, details) {
   });
 }
 
-module.exports = { sendPaymentEmail, sendOtpEmail, sendAccessIdEmail, sendWelcomeEmail, sendTrialReminderEmail, welcomeContent, renderEmail };
+async function sendBugReportEmail(report) {
+  return deliver(process.env.BUG_REPORT_TO || 'thegideons.2.5.1@gmail.com', {
+    subject: `ClearanceLink bug report ${report.id.slice(0, 8)}`,
+    title: 'New bug report',
+    preheader: `Reported from the ${report.role} app`,
+    greeting: 'Hello,',
+    paragraphs: [
+      `Report ID: ${report.id}`,
+      `Time: ${report.createdAt}`,
+      `Screen: ${report.screen} · Role: ${report.role} · Platform: ${report.platform}`,
+      `Account: ${report.accountEmail || 'Not signed in'}`,
+      `Description: ${report.description}`,
+    ],
+    sections: [],
+    closing: '',
+  });
+}
+
+module.exports = { sendPaymentEmail, sendOtpEmail, sendAccessIdEmail, sendWelcomeEmail, sendTrialReminderEmail, sendBugReportEmail, welcomeContent, renderEmail };

@@ -82,7 +82,7 @@ export function ErrorText({ children }) {
 const TABS = [
   { key: 'home', label: 'Home', icon: 'home' },
   { key: 'clearances', label: 'Clearances', icon: 'grid' },
-  { key: 'notifications', label: 'Notifications', icon: 'notifications' },
+  { key: 'cleared', label: 'Cleared', icon: 'checkmark-circle' },
   { key: 'profile', label: 'Profile', icon: 'person' },
 ];
 

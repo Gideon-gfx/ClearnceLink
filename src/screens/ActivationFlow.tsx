@@ -6,7 +6,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, ScrollView, StatusBar, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiRequest } from '../api';
-import { Field, PrimaryButton } from '../components/Shared';
+import { Field, PasswordChecklist, PrimaryButton } from '../components/Shared';
 import { ErrorText, INK, MUTED, PURPLE } from '../student/ui';
 
 export const CODE_LIFETIME = 300; // seconds; matches the server (5 minutes)
@@ -151,17 +151,7 @@ export default function ActivationFlow({ role = 'student', onBack, onDone }) {
         <Subtitle>Set a password to secure your account.</Subtitle>
         <Field error={Boolean(error) && password.length > 0 && RULES.some(([, test]) => !test(password))} label="Create password" value={password} onChangeText={setPassword} placeholder="Create password" secureTextEntry icon="lock-closed-outline" />
         <Field error={Boolean(error) && confirm !== password} label="Confirm password" value={confirm} onChangeText={setConfirm} placeholder="Confirm password" secureTextEntry icon="lock-closed-outline" />
-        <View style={{ marginTop: 6, marginBottom: 22, gap: 10 }}>
-          {RULES.map(([label, test]) => {
-            const ok = test(password);
-            return (
-              <View key={label} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name={ok ? 'checkmark-circle' : 'ellipse-outline'} size={20} color={ok ? '#16a34a' : '#c4c1d8'} style={{ marginRight: 10 }} />
-                <Text style={{ fontSize: 14, color: INK }}>{label}</Text>
-              </View>
-            );
-          })}
-        </View>
+        <View style={{ marginTop: 6, marginBottom: 22 }}><PasswordChecklist password={password} confirm={confirm} /></View>
         <ErrorText>{error}</ErrorText>
         <PrimaryButton title={busy ? 'Creating...' : 'Create Account'} onPress={busy ? undefined : activate} />
       </Shell>

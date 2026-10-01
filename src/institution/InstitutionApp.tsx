@@ -40,12 +40,12 @@ export default function InstitutionApp({ session, onSignOut, onSessionChange = (
   useEffect(() => { api.request('/notifications').then((result) => setUnread(result.unread || 0)).catch(() => {}); }, [api, stack.length, current.screen]);
   const go = (screen, params = {}) => setStack((items) => [...items, { screen, params }]);
   const back = () => setStack((items) => items.length > 1 ? items.slice(0, -1) : items);
-  const tab = (screen) => setStack([{ screen, params: {} }]);
+  const tab = (screen, params = {}) => setStack([{ screen, params }]);
   useEffect(() => { const subscription = BackHandler.addEventListener('hardwareBackPress', () => { if (stack.length > 1) { back(); return true; } return false; }); return () => subscription.remove(); }, [stack.length]);
   let body;
   switch (current.screen) {
-    case 'home': body = <HomeScreen api={api} user={session.user} onNavigate={go} />; break;
-    case 'students': body = <StudentsScreen api={api} onNavigate={go} onBack={() => tab('home')} />; break;
+    case 'home': body = <HomeScreen api={api} user={session.user} onNavigate={go} onTab={tab} />; break;
+    case 'students': body = <StudentsScreen api={api} initialFilter={current.params.filter} onNavigate={go} onBack={() => tab('home')} />; break;
     case 'staff': body = <StaffScreen api={api} onNavigate={go} onBack={() => tab('home')} />; break;
     case 'oversight': body = <OversightScreen api={api} onBack={() => tab('home')} />; break;
     case 'more': body = <MoreScreen user={session.user} token={session.token} logoUrl={logoUrl} onLogoChanged={() => { setHasLogo(true); setLogoVersion((value) => value + 1); }} onNavigate={go} onSignOut={onSignOut} onBack={() => tab('home')} />; break;
@@ -65,7 +65,7 @@ export default function InstitutionApp({ session, onSignOut, onSessionChange = (
     case 'stamp': body = <StampScreen token={session.token} onBack={back} />; break;
     case 'completion': body = <CompletionScreen api={api} onBack={back} />; break;
     case 'activity': body = <ActivityScreen api={api} onBack={back} onSeen={() => setUnread(0)} />; break;
-    default: body = <HomeScreen api={api} user={session.user} onNavigate={go} />;
+    default: body = <HomeScreen api={api} user={session.user} onNavigate={go} onTab={tab} />;
   }
   const animated = <ScreenTransition key={`${current.screen}-${stack.length}`}>{body}</ScreenTransition>;
   if (!mainTabs.includes(current.screen)) return animated;

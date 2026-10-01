@@ -120,7 +120,7 @@ export default function ForgotPasswordScreen({ mode, initialEmail = '', onBack, 
           <Subtitle>Your code is verified. Choose a strong password you haven’t used before.</Subtitle>
           <Field error={Boolean(error) && !passwordIsStrong(password)} label="New password" value={password} onChangeText={setPassword} placeholder="Create new password" secureTextEntry icon="lock-closed-outline" />
           <Field error={Boolean(error) && confirm !== password} label="Confirm password" value={confirm} onChangeText={setConfirm} placeholder="Confirm new password" secureTextEntry icon="lock-closed-outline" />
-          {password ? <PasswordChecklist password={password} /> : null}
+          {password || confirm ? <PasswordChecklist password={password} confirm={confirm} /> : null}
           <ErrorText>{error}</ErrorText>
           <View style={{ marginTop: 10 }}><PrimaryButton title={busy ? 'Saving...' : 'Reset Password'} onPress={busy ? undefined : resetPassword} /></View>
         </>

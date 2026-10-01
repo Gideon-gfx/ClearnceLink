@@ -20,6 +20,23 @@ export function useConfirm() {
   return { confirm, sheet };
 }
 
+// A plain object style is used here (not a function of `pressed`): the styling layer ignores function styles, which left
+// this button with no size or colour, so only Cancel showed.
+function ActionButton({ label, outline, color, onPress }) {
+  const [pressed, setPressed] = useState(false);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={{ height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: outline ? 'white' : color, borderWidth: outline ? 1.5 : 0, borderColor: '#d6ccf3', opacity: pressed ? 0.85 : 1 }}
+    >
+      <Text style={{ fontSize: 15, fontWeight: '700', color: outline ? PURPLE : 'white' }}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function ConfirmSheet({ visible, options, onClose }) {
   const offset = useRef(new Animated.Value(320)).current;
   const fade = useRef(new Animated.Value(0)).current;
@@ -57,20 +74,9 @@ export function ConfirmSheet({ visible, options, onClose }) {
             {options.message ? <Text style={{ marginTop: 8, marginBottom: 6, fontSize: 14, lineHeight: 21, color: MUTED, textAlign: 'center' }}>{options.message}</Text> : null}
           </View>
           <View style={{ marginTop: 16, gap: 10 }}>
-            {(options.actions || []).map((action) => {
-              const outline = action.variant === 'outline';
-              const color = action.variant === 'danger' || danger ? '#dc2626' : PURPLE;
-              return (
-                <Pressable
-                  key={action.label}
-                  accessibilityRole="button"
-                  onPress={() => dismiss(action.onPress)}
-                  style={({ pressed }) => ({ height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: outline ? 'white' : color, borderWidth: outline ? 1.5 : 0, borderColor: '#d6ccf3', opacity: pressed ? 0.85 : 1 })}
-                >
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: outline ? PURPLE : 'white' }}>{action.label}</Text>
-                </Pressable>
-              );
-            })}
+            {(options.actions || []).map((action) => (
+              <ActionButton key={action.label} label={action.label} outline={action.variant === 'outline'} color={action.variant === 'danger' || danger ? '#dc2626' : PURPLE} onPress={() => dismiss(action.onPress)} />
+            ))}
             <Pressable accessibilityRole="button" onPress={() => dismiss()} style={{ height: 48, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: MUTED }}>{options.cancelLabel || 'Cancel'}</Text>
             </Pressable>

@@ -2,16 +2,44 @@
   "expo": {
     "name": "ClearanceLink",
     "slug": "institution-clearance",
+    "owner": "gideon-gfx",
     "version": "1.0.0",
     "icon": "./src/assets/logo.png",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "android": {
+      "package": "com.gideongfx.clearancelink",
+      "googleServicesFile": "./google-services.json"
+    },
+    "ios": {
+      "bundleIdentifier": "com.gideongfx.clearancelink"
+    },
     "web": {
       "bundler": "metro"
     },
     "plugins": [
-      "expo-video"
-    ]
+      "expo-video",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#5A17C9"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5bd81f47-d0a0-4ef5-bc9d-ee0f47fafd72"
+      }
+    }
   }
 }

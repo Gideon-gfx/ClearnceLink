@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { Input, Message, Page, Primary } from './ui';
 
-export default function PersonForm({ api, kind, onBack, onSaved }) {
+export default function PersonForm({ api, kind, onBack, onSaved, initial = {}, subtitle = '', allowMatric = false, nested = false }: { api: any; kind: string; onBack: () => void; onSaved: (item: any) => void; initial?: Record<string, string>; subtitle?: string; allowMatric?: boolean; nested?: boolean }) {
   const student = kind === 'students';
-  const [form, setForm] = useState({ name: '', jamb: '', staffId: '', email: '', phone: '', faculty: '', department: '', programme: '', entryLevel: '100', level: '100', admissionYear: String(new Date().getFullYear()), admissionStatus: 'Accepted', jobTitle: '' });
+  const [form, setForm] = useState({ name: '', jamb: '', matricNo: '', staffId: '', email: '', phone: '', faculty: '', department: '', programme: '', entryLevel: '100', level: '100', admissionYear: String(new Date().getFullYear()), admissionStatus: 'Accepted', jobTitle: '', ...initial });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const set = (field) => (value) => setForm((current) => ({ ...current, [field]: value }));
@@ -12,7 +12,7 @@ export default function PersonForm({ api, kind, onBack, onSaved }) {
   const [showErrors, setShowErrors] = useState(false);
   const invalid = {
     name: !form.name.trim(),
-    id: student ? !form.jamb.trim() : !form.staffId.trim(),
+    id: student ? !form.jamb.trim() && (!allowMatric || !form.matricNo.trim()) : !form.staffId.trim(),
     email: !/^\S+@\S+\.\S+$/.test(form.email.trim()),
     department: !form.department.trim(),
     programme: student && !form.programme.trim(),
@@ -27,9 +27,10 @@ export default function PersonForm({ api, kind, onBack, onSaved }) {
     catch (cause) { setError(cause.message); }
     finally { setBusy(false); }
   };
-  return <Page title={student ? 'Add Student' : 'Add Staff'} subtitle={student ? 'Enter the admitted student’s details. A Clearance ID will be generated for your review.' : 'Add a staff member. Access ID delivery requires your approval.'} onBack={onBack} footer={<><Message text={error} error /><Primary title={busy ? 'Saving...' : student ? 'Add Student' : 'Add Staff'} icon="arrow-forward" disabled={busy} onPress={save} /></>}>
+  return <Page nested={nested} title={student ? 'Add Student' : 'Add Staff'} subtitle={subtitle || (student ? 'Enter the admitted student’s details. A Clearance ID will be generated for your review.' : 'Add a staff member. Access ID delivery requires your approval.')} onBack={onBack} footer={<><Message text={error} error /><Primary title={busy ? 'Saving...' : student ? 'Add Student' : 'Add Staff'} icon="arrow-forward" disabled={busy} onPress={save} /></>}>
     <Input label="Full Name" value={form.name} onChangeText={set('name')} placeholder="e.g. Gideon Gbolahan Solomon" error={red('name')} />
-    <Input label={student ? 'JAMB Registration Number' : 'Institution Staff ID'} value={student ? form.jamb : form.staffId} onChangeText={set(student ? 'jamb' : 'staffId')} placeholder={student ? '2026XXXXXXXX' : 'STF-001'} error={red('id') || /jamb|staff id/i.test(error)} />
+    <Input label={student ? allowMatric ? 'JAMB Registration Number (or enter Matric No. below)' : 'JAMB Registration Number' : 'Institution Staff ID'} value={student ? form.jamb : form.staffId} onChangeText={set(student ? 'jamb' : 'staffId')} placeholder={student ? 'e.g. 2026XXXXXXXX' : 'STF-001'} error={red('id') || /jamb|staff id/i.test(error)} />
+    {student && allowMatric ? <Input label="Matriculation Number (or enter JAMB No. above)" value={form.matricNo} onChangeText={set('matricNo')} placeholder="e.g. CSC/2024/001" error={red('id') || /matric/i.test(error)} /> : null}
     <Input label="Email" value={form.email} onChangeText={set('email')} placeholder="name@institution.edu" keyboardType="email-address" error={red('email')} />
     <Input label="Phone Number" value={form.phone} onChangeText={set('phone')} placeholder="+234 708 394 1641" keyboardType="phone-pad" />
     <Input label="Faculty / School" value={form.faculty} onChangeText={set('faculty')} placeholder="Faculty of Computing" />

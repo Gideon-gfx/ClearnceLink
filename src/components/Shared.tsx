@@ -8,26 +8,53 @@ import { ActivityIndicator, Animated, FlatList, Easing, Keyboard, Modal, PanResp
 
 export function Field({ label, value, onChangeText, placeholder, keyboardType, multiline, icon, secureTextEntry, login = false, error = false, adornment }) {
   const [passwordVisible, setPasswordVisible] = useState(false);
+  // Android hides a typed password character almost immediately. Masking is done here instead, so the latest character
+  // stays visible for a couple of seconds (enough to check what you typed) before it turns into a dot.
+  const masked = Boolean(secureTextEntry) && !passwordVisible;
+  const [revealAt, setRevealAt] = useState(-1);
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current); }, []);
+  const current = String(value ?? '');
+  const display = masked ? current.split('').map((character, index) => (index === revealAt ? character : '•')).join('') : current;
+  const handleChange = (text: string) => {
+    if (!masked) { onChangeText(text); return; }
+    // Work out what changed by comparing what was on screen with what is on screen now.
+    let start = 0;
+    while (start < display.length && start < text.length && display[start] === text[start]) start += 1;
+    let endOld = display.length;
+    let endNew = text.length;
+    while (endOld > start && endNew > start && display[endOld - 1] === text[endNew - 1]) { endOld -= 1; endNew -= 1; }
+    const inserted = text.slice(start, endNew);
+    onChangeText(current.slice(0, start) + inserted + current.slice(endOld));
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    if (inserted.length === 1) {
+      setRevealAt(start);
+      revealTimer.current = setTimeout(() => setRevealAt(-1), 2000);
+    } else setRevealAt(-1);
+  };
   return (
     <View className="mb-3">
       <Text className="mb-1.5 font-bold text-ink" style={{ fontSize: login ? 16 : 15 }}>{label}</Text>
-      <View className={`flex-row items-center rounded-[10px] bg-white px-3 ${multiline ? 'items-start py-3' : ''}`} style={{ height: multiline ? 104 : login ? 52 : 58, borderWidth: 2, borderColor: error ? '#ef4444' : login ? '#c9c1eb' : '#d2caf1' }}>
-        {adornment || (icon ? <Ionicons name={icon} size={login ? 18 : 20} color="#8b87a6" style={{ marginRight: 8 }} /> : null)}
+      <View className={`flex-row items-center rounded-[10px] bg-white px-3 ${multiline ? 'items-start py-3' : ''}`} style={{ height: multiline ? 104 : login ? 58 : 58, borderWidth: 2, borderColor: error ? '#ef4444' : login ? '#c9c1eb' : '#d2caf1' }}>
+        {adornment || (icon ? <Ionicons name={icon} size={login ? 21 : 20} color="#8b87a6" style={{ marginRight: 8 }} /> : null)}
         <TextInput
           accessibilityLabel={label}
-          value={value}
-          onChangeText={onChangeText}
+          value={display}
+          onChangeText={handleChange}
           onFocus={notifyFieldFocus}
           placeholder={placeholder}
           placeholderTextColor="#a4a1bc"
-          keyboardType={keyboardType || 'default'}
           multiline={multiline}
-          secureTextEntry={secureTextEntry && !passwordVisible}
-          autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
-          autoComplete={secureTextEntry ? 'password' : keyboardType === 'email-address' ? 'email' : 'off'}
+          secureTextEntry={false}
+          autoCorrect={masked ? false : undefined}
+          spellCheck={masked ? false : undefined}
+          keyboardType={masked ? 'visible-password' : keyboardType || 'default'}
+          importantForAutofill={masked ? 'no' : 'auto'}
+          autoCapitalize={keyboardType === 'email-address' || secureTextEntry ? 'none' : 'sentences'}
+          autoComplete={secureTextEntry ? 'off' : keyboardType === 'email-address' ? 'email' : 'off'}
           textAlignVertical={multiline ? 'top' : 'center'}
           className="h-full flex-1 p-0 text-ink"
-          style={{ fontSize: login ? 14 : 16 }}
+          style={{ fontSize: login ? 17 : 16 }}
         />
         {secureTextEntry ? (
           <Pressable accessibilityRole="button" accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'} onPress={() => setPasswordVisible((current) => !current)} style={{ marginLeft: 8, padding: 4 }}>
@@ -40,26 +67,27 @@ export function Field({ label, value, onChangeText, placeholder, keyboardType, m
 }
 
 export const PASSWORD_RULES = [
-  ['At least 8 characters', (value) => value.length >= 8],
-  ['One uppercase letter', (value) => /[A-Z]/.test(value)],
-  ['One number', (value) => /\d/.test(value)],
-  ['One special character', (value) => /[^A-Za-z0-9]/.test(value)],
+  ['At least 8 characters long', (value) => value.length >= 8],
+  ['At least one uppercase letter (A to Z)', (value) => /[A-Z]/.test(value)],
+  ['At least one number (0 to 9)', (value) => /\d/.test(value)],
+  ['At least one special character (for example ! @ # $ %)', (value) => /[^A-Za-z0-9]/.test(value)],
 ];
 export const passwordIsStrong = (value) => PASSWORD_RULES.every(([, test]) => test(value));
 
 // Live checklist: each requirement turns into a green tick once it is met.
-export function PasswordChecklist({ password }) {
+// The checklist of password rules. Pass `confirm` (the confirmation field's text) to add a last line that turns green
+// once the two passwords match, at which point every line is ticked.
+export function PasswordChecklist({ password, confirm }: { password: string; confirm?: string }) {
+  const rows: [string, boolean][] = PASSWORD_RULES.map(([label, test]) => [label as string, (test as (value: string) => boolean)(password)]);
+  if (confirm !== undefined) rows.push(['Both passwords match', confirm.length > 0 && confirm === password]);
   return (
     <View style={{ marginTop: 2, marginBottom: 8, gap: 10 }}>
-      {PASSWORD_RULES.map(([label, test]) => {
-        const ok = test(password);
-        return (
-          <View key={label} style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Ionicons name={ok ? 'checkmark-circle' : 'ellipse-outline'} size={20} color={ok ? '#16a34a' : '#c4c1d8'} style={{ marginRight: 10 }} />
-            <Text style={{ fontSize: 14, color: ok ? '#171548' : '#6e6b91' }}>{label}</Text>
-          </View>
-        );
-      })}
+      {rows.map(([label, ok]) => (
+        <View key={label} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <Ionicons name={ok ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={ok ? '#16a34a' : '#c4c1d8'} style={{ marginRight: 10, marginTop: 1 }} />
+          <Text style={{ flex: 1, fontSize: 15, lineHeight: 21, color: ok ? '#171548' : '#6e6b91' }}>{label}</Text>
+        </View>
+      ))}
     </View>
   );
 }

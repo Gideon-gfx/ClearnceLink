@@ -5,7 +5,7 @@ import { ActivityIndicator, BackHandler, StatusBar, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiRequest } from '../api';
 import { ClearanceDetailScreen, ClearedScreen, CompletedScreen, IdCardScreen, RejectedScreen, RequirementScreen } from './screensFlow';
-import { ClearancesScreen, HomeScreen, NotificationsScreen, ProfileScreen } from './screensMain';
+import { ClearedTabScreen, ClearancesScreen, HomeScreen, NotificationsScreen, ProfileScreen } from './screensMain';
 import { BottomTabs, MUTED, PURPLE, SolidButton } from './ui';
 
 export default function StudentApp({ session, onSignOut }) {
@@ -72,7 +72,7 @@ export default function StudentApp({ session, onSignOut }) {
   const top = stack.at(-1);
   const screens = { clearance: ClearanceDetailScreen, requirement: RequirementScreen, rejected: RejectedScreen, cleared: ClearedScreen, completed: CompletedScreen, idcard: IdCardScreen };
   const Flow = top && screens[top.name];
-  const Tab = { home: HomeScreen, clearances: ClearancesScreen, notifications: NotificationsScreen, profile: ProfileScreen }[tab];
+  const Tab = { home: HomeScreen, clearances: ClearancesScreen, cleared: ClearedTabScreen, notifications: NotificationsScreen, profile: ProfileScreen }[tab];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>

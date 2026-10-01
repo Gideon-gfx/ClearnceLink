@@ -6,6 +6,7 @@ import { ActivityIndicator, Image, Modal } from 'react-native';
 import { apiBaseUrl } from '../api';
 import ErrorBanner from '../components/ErrorBanner';
 import { useSignOut } from '../components/useSignOut';
+import { useBugReport } from '../components/BugReportShake';
 import { C, Card, Heading, ScreenTitle, useLogoUri } from './ui';
 import { LinearGradient } from 'expo-linear-gradient';
 import { planSummary, planTheme } from './plansScreen';
@@ -17,6 +18,7 @@ async function toBase64(uri) {
 }
 
 export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onNavigate, onSignOut, onBack }) {
+  const { open: openBugReport } = useBugReport();
   const logoUri = useLogoUri(logoUrl, token);
   const [menu, setMenu] = useState(false);
   const [viewing, setViewing] = useState(false);
@@ -38,7 +40,7 @@ export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onNavi
     } catch (cause) { setLogoError(cause.message); }
     finally { setUploading(false); }
   };
-  const [signingOut, askSignOut] = useSignOut(onSignOut);
+  const [signingOut, askSignOut, signOutSheet] = useSignOut(onSignOut);
   return <View style={{ flex: 1, backgroundColor: 'white' }}><ScreenTitle title="More" onBack={onBack} /><ScrollView contentContainerStyle={{ paddingHorizontal: 17, paddingTop: 10, paddingBottom: 35 }}>
     <Pressable accessibilityRole="button" accessibilityLabel="Institution logo. View or replace" onPress={() => setMenu(true)}>
       <Card style={{ marginTop: 16, alignItems: 'center', backgroundColor: '#F8F5FF' }}>
@@ -67,8 +69,9 @@ export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onNavi
     </Pressable>
     <ErrorBanner message={logoError} />
     <Heading>Institution Controls</Heading>
+    <Pressable onPress={openBugReport} style={{ height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 8, borderWidth: 1.5, borderColor: C.border, borderRadius: 14, backgroundColor: 'white' }}><Ionicons name="bug-outline" size={23} color={C.purple} /><Text style={{ flex: 1, marginLeft: 13, color: C.ink, fontSize: 15, fontFamily: 'Inter_600SemiBold' }}>Report a bug</Text><Ionicons name="chevron-forward" size={19} color={C.muted} /></Pressable>
     {actions.map(([label, icon, target]) => <Pressable key={target} onPress={() => onNavigate(target)} style={{ height: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, borderWidth: 2, borderColor: C.border, borderRadius: 14, backgroundColor: 'white' }}><Ionicons name={icon} size={24} color={C.purple} /><Text style={{ flex: 1, marginLeft: 14, color: C.ink, fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{label}</Text><Ionicons name="chevron-forward" size={21} color={C.muted} /></Pressable>)}
-    <Pressable accessibilityRole="button" onPress={askSignOut} style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 20, borderWidth: 2, borderColor: '#FFC4CF', borderRadius: 14, backgroundColor: '#FFF5F7' }}>{signingOut ? <ActivityIndicator color={C.red} /> : <Ionicons name="log-out-outline" size={22} color={C.red} />}<Text style={{ marginLeft: 8, color: C.red, fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{signingOut ? 'Signing out...' : 'Sign Out'}</Text></Pressable>
+    <Pressable accessibilityRole="button" onPress={askSignOut} style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 20, borderWidth: 2, borderColor: '#FFC4CF', borderRadius: 14, backgroundColor: '#FFF5F7' }}>{signingOut ? <ActivityIndicator color={C.red} /> : <Ionicons name="log-out-outline" size={22} color={C.red} />}<Text style={{ marginLeft: 8, color: C.red, fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{signingOut ? 'Signing out...' : 'Sign Out'}</Text></Pressable>{signOutSheet}
   </ScrollView>
   <Modal transparent visible={menu} animationType="fade" onRequestClose={() => setMenu(false)}>
     <Pressable style={{ flex: 1, backgroundColor: 'rgba(23,19,43,0.5)', justifyContent: 'flex-end' }} onPress={() => setMenu(false)}>

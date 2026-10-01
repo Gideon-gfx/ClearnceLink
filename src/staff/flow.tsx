@@ -1,18 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import KeyboardScreen from '../components/KeyboardScreen';
 import ErrorBanner from '../components/ErrorBanner';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { downloadAndShare, stampedName } from '../components/downloadFile';
-import { ActivityIndicator, Image, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { apiBaseUrl, apiRequest } from '../api';
 import { Card, ErrorText, INK, LINE, MUTED, PURPLE, ScreenHeader, SolidButton, StatusBadge, formatDate, formatSize, timeAgo, useBusy } from './ui';
 import * as ImagePicker from 'expo-image-picker';
 import PdfView from '../components/PdfView';
 import useAuthImage from '../components/useAuthImage';
+import { pickStampImage } from '../components/pickStampImage';
+import StampPlacement, { placementLabel } from '../components/StampPlacement';
 import { Input } from '../institution/ui';
+import AddStudentScreen from '../institution/addStudentScreen';
+import ImportStudentsScreen from '../institution/importStudentsScreen';
+import ImportResultsScreen from '../institution/importResultsScreen';
+import { staffStudentsApi } from './studentsApi';
 import { Avatar } from './screens';
 
-const REASONS = ['Document is unreadable', 'Wrong document', 'Incomplete document', 'Information does not match', 'Other'];
+const REASONS = ['The document is unreadable', 'The wrong document was uploaded', 'The document is incomplete', 'The information does not match our records', 'Another reason (explained below)'];
 const TYPE = { 'application/pdf': 'PDF', 'image/png': 'Image', 'image/jpeg': 'Image' };
 const fileUrl = (fileId) => `${apiBaseUrl}/api/staff/files/${fileId}`;
 
@@ -67,10 +73,19 @@ const docLine = (sub) => `${TYPE[sub.mimeType] || 'File'} • ${formatSize(sub.s
 export function StudentDetailsScreen({ app, params }) {
   const { data, error } = useStudent(app, params.id);
   const [tab, setTab] = useState('Details');
+  const [ground, setGround] = useState(false);
+  const [groundBusy, setGroundBusy] = useState('');
+  const [groundError, setGroundError] = useState('');
   if (!data) return <Loading title="Student Details" error={error} onBack={app.back} />;
   const { student } = data;
+  const clearOnGround = async (item) => {
+    setGroundBusy(item.id); setGroundError('');
+    try { await apiRequest('/api/staff/ground-clear', { studentId: student.id, clearanceId: item.id }, app.token); app.bump(); setGround(false); }
+    catch (cause) { setGroundError(cause instanceof Error ? cause.message : 'Could not clear this student.'); }
+    finally { setGroundBusy(''); }
+  };
   const pending = pendingDocs(data).length;
-  const rows = [['JAMB Registration', student.jamb], ['Programme', student.programme], ['Faculty', student.faculty], ['Level', `${student.level} Level`], ['Admission Year', student.admissionYear], ['Email', student.email], ['Phone Number', student.phone]];
+  const rows = [['JAMB Registration', student.jamb], ['Matriculation Number', student.matricNo], ['Programme', student.programme], ['Faculty', student.faculty], ['Level', `${student.level} Level`], ['Admission Year', student.admissionYear], ['Email', student.email], ['Phone Number', student.phone]];
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
       <ScreenHeader title="Student Details" onBack={app.back} />
@@ -114,7 +129,35 @@ export function StudentDetailsScreen({ app, params }) {
           </View>
         ) : null}
       </ScrollView>
+      <Modal transparent visible={ground} animationType="slide" statusBarTranslucent onRequestClose={() => setGround(false)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => (groundBusy ? undefined : setGround(false))} style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(23,19,43,0.5)' }} />
+          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 26, maxHeight: '85%' }}>
+            <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: '#D6D3DF', marginBottom: 14 }} />
+            <Text style={{ fontSize: 21, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK }}>Clear on the ground</Text>
+            <Text style={{ fontSize: 14, color: MUTED, marginTop: 4, marginBottom: 14 }}>Choose a clearance to clear for {student.name} in person. Nothing needs to be uploaded.</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {(data.clearances || []).length === 0 ? <Text style={{ color: MUTED, fontSize: 15, textAlign: 'center', marginVertical: 20 }}>No clearances apply to this student yet.</Text> : null}
+              {(data.clearances || []).map((item) => {
+                const done = item.status === 'completed';
+                return (
+                  <Pressable key={item.id} accessibilityRole="button" disabled={done || Boolean(groundBusy)} onPress={() => clearOnGround(item)} style={{ flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 10, borderRadius: 14, borderWidth: 2, borderColor: '#D9D2F3', opacity: done ? 0.6 : 1 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700', color: INK }}>{item.name}</Text>
+                      <Text style={{ fontSize: 13, color: MUTED, marginTop: 2 }}>{done ? 'Already cleared' : `${item.done} of ${item.total} cleared`}</Text>
+                    </View>
+                    {groundBusy === item.id ? <ActivityIndicator color={PURPLE} /> : done ? <Ionicons name="checkmark-circle" size={24} color="#16a34a" /> : <Text style={{ fontSize: 14, fontFamily: 'Inter_700Bold', fontWeight: '700', color: PURPLE }}>Clear</Text>}
+                  </Pressable>
+                );
+              })}
+              {groundError ? <Text style={{ color: '#dc2626', fontSize: 14, marginBottom: 8 }}>{groundError}</Text> : null}
+            </ScrollView>
+            <Pressable accessibilityRole="button" onPress={() => (groundBusy ? undefined : setGround(false))} style={{ alignItems: 'center', padding: 14 }}><Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', fontWeight: '700', color: MUTED }}>Close</Text></Pressable>
+          </View>
+        </View>
+      </Modal>
       <View style={{ padding: 18, paddingTop: 6 }}>
+        {app.overview.canCreate ? <View style={{ marginBottom: 10 }}><SolidButton variant="outline" icon="people-outline" title="Clear on the Ground" onPress={() => setGround(true)} /></View> : null}
         <SolidButton icon="arrow-forward" iconSide="right" title="Review Submission" onPress={() => app.go('documents', { id: student.id })} />
       </View>
     </View>
@@ -235,6 +278,7 @@ export function TakeActionScreen({ app, params }) {
   const [stamp, setStamp] = useState(undefined);
   const [stampVersion, setStampVersion] = useState(0);
   const [stampError, setStampError] = useState('');
+  const [positioning, setPositioning] = useState(false);
   const stampImage = useAuthImage(stamp ? `${apiBaseUrl}/api/staff/stamp/image` : null, app.token, stampVersion);
   useEffect(() => {
     let live = true;
@@ -243,18 +287,16 @@ export function TakeActionScreen({ app, params }) {
   }, []);
   const uploadStamp = async () => {
     setStampError('');
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
-    if (result.canceled || !result.assets?.[0]) return;
-    const asset = result.assets[0];
-    const mimeType = asset.mimeType || (/\.png$/i.test(asset.uri) ? 'image/png' : 'image/jpeg');
-    if (!['image/png', 'image/jpeg'].includes(mimeType)) { setStampError('Please choose a PNG or JPG image.'); return; }
-    if (asset.fileSize && asset.fileSize > 1.5 * 1024 * 1024) { setStampError('The image must be under 1.5MB.'); return; }
     try {
-      const blob = await (await fetch(asset.uri)).blob();
-      const base64 = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(String(reader.result).split(',')[1]); reader.onerror = () => reject(new Error('Could not read the selected image.')); reader.readAsDataURL(blob); });
-      const saved = await apiRequest('/api/staff/stamp', { name: asset.fileName || 'stamp', mimeType, base64 }, app.token, 'PUT');
+      const picked = await pickStampImage();
+      if (!picked) return;
+      const saved = await apiRequest('/api/staff/stamp', { name: picked.name, mimeType: picked.mimeType, base64: picked.base64 }, app.token, 'PUT');
       setStamp(saved.stamp); setStampVersion((value) => value + 1);
-    } catch (cause) { setStampError(cause.message); }
+    } catch (cause) { setStampError(cause instanceof Error ? cause.message : 'Could not add the stamp.'); }
+  };
+  const savePlacement = async (placement) => {
+    const saved = await apiRequest('/api/staff/stamp/placement', placement, app.token, 'PUT');
+    setStamp(saved.stamp);
   };
   if (!data) return <Loading title="Take Action" error={error} onBack={app.back} />;
   const pending = pendingDocs(data);
@@ -320,7 +362,9 @@ export function TakeActionScreen({ app, params }) {
                     </>
                   ) : <ActivityIndicator color={PURPLE} />}
                 </View>
-                {stamp !== undefined ? <View style={{ marginTop: 12 }}><SolidButton variant="outline" icon="cloud-upload-outline" title={stamp ? 'Replace stamp' : 'Add stamp'} onPress={uploadStamp} /></View> : null}
+                {stamp ? <Pressable accessibilityRole="button" onPress={() => setPositioning(true)} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, padding: 12, borderRadius: 12, borderWidth: 2, borderColor: '#D9D2F3', backgroundColor: '#faf8ff' }}><Ionicons name="move-outline" size={22} color={PURPLE} style={{ marginRight: 10 }} /><View style={{ flex: 1 }}><Text style={{ fontSize: 13, color: MUTED }}>Position on the page</Text><Text style={{ fontSize: 15, fontWeight: '700', color: INK }}>{placementLabel(stamp.placement)}</Text></View><Text style={{ fontSize: 14, fontWeight: '700', color: PURPLE }}>Change</Text></Pressable> : null}
+                {stamp !== undefined ? <View style={{ marginTop: 10 }}><SolidButton variant="outline" icon="cloud-upload-outline" title={stamp ? 'Replace stamp' : 'Add stamp'} onPress={uploadStamp} /></View> : null}
+                <StampPlacement visible={positioning} imageUri={stampImage.uri} value={stamp?.placement} onClose={() => setPositioning(false)} onSave={savePlacement} />
                 {stampError ? <View style={{ marginTop: 10 }}><ErrorText>{stampError}</ErrorText></View> : null}
               </Card>
             </>
@@ -421,11 +465,27 @@ export function RejectScreen({ app, params }) {
 const EXAMPLE = { name: 'Hostel Clearance', description: 'Upload these documents to get your hostel space.', documents: ['Hostel Application Form', 'Passport Photograph', 'Caution Fee Receipt'] };
 const labelStyle = { marginBottom: 8, fontSize: 15, color: INK, fontFamily: 'Inter_700Bold', fontWeight: '700' } as const;
 
+function Choice({ options, value, onChange }) {
+  return (
+    <View style={{ gap: 10, marginBottom: 18 }}>
+      {options.map(([key, title, text, icon]) => (
+        <Pressable key={key} accessibilityRole="button" onPress={() => onChange(key)} style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, borderWidth: 2, borderColor: value === key ? PURPLE : '#D9D2F3', backgroundColor: value === key ? '#F6F2FF' : 'white' }}>
+          <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: value === key ? PURPLE : '#F3F0FF', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}><Ionicons name={icon} size={22} color={value === key ? 'white' : PURPLE} /></View>
+          <View style={{ flex: 1 }}><Text style={{ fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700', color: INK }}>{title}</Text><Text style={{ fontSize: 13, color: MUTED, marginTop: 2, lineHeight: 18 }}>{text}</Text></View>
+          <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: value === key ? PURPLE : '#c9c5dc', alignItems: 'center', justifyContent: 'center' }}>{value === key ? <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: PURPLE }} /> : null}</View>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export function CreateClearanceScreen({ app }) {
   const { staff } = app.overview;
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [documents, setDocuments] = useState(['']);
+  const [mode, setMode] = useState('documents');
+  const [audience, setAudience] = useState('scope');
   const [tried, setTried] = useState(false);
   const { busy, error, setError, run } = useBusy();
   const setDocument = (index, value) => setDocuments((current) => current.map((item, at) => (at === index ? value : item)));
@@ -436,7 +496,7 @@ export function CreateClearanceScreen({ app }) {
     if (missing) { setError('Some fields are empty. Fill in the ones marked in red.'); return; }
     return run(async () => {
       // The clearance is one list of documents; the server keeps it as a single stage.
-      await apiRequest('/api/staff/clearances', { name, description, stages: [{ name: 'Documents', requirements: documents.map((item) => ({ name: item })) }] }, app.token);
+      await apiRequest('/api/staff/clearances', { name, description, mode, audience, stages: [{ name: mode === 'ground' ? 'Checks' : 'Documents', requirements: documents.map((item) => ({ name: item })) }] }, app.token);
       app.bump();
       app.back();
     });
@@ -447,19 +507,28 @@ export function CreateClearanceScreen({ app }) {
       <ScreenHeader title="Create Clearance" onBack={app.back} />
       <KeyboardScreen contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
         <Card style={{ marginBottom: 18, backgroundColor: '#faf8ff' }}>
-          <Text style={{ fontSize: 14, lineHeight: 21, color: MUTED }}>Name the clearance, then list the documents a student must upload. You will review what they send.</Text>
-          <Text style={{ fontSize: 13, color: MUTED, marginTop: 8 }}>For {staff.scope.department} • {staff.scope.level} Level • {staff.scope.session}. Only those students will see it.</Text>
+          <Text style={{ fontSize: 14, lineHeight: 21, color: MUTED }}>Choose how it is cleared and who it is for, name it, then list what is needed.</Text>
           <View style={{ marginTop: 12 }}><SolidButton variant="outline" icon="bulb-outline" title="Fill in an example" onPress={useExample} /></View>
         </Card>
 
+        <Text style={{ fontSize: 16, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK, marginBottom: 10 }}>How is it cleared?</Text>
+        <Choice value={mode} onChange={setMode} options={[
+          ['documents', 'Students upload documents', 'You review each upload and clear or reject it.', 'cloud-upload-outline'],
+          ['ground', 'In person, on the ground', 'Nothing to upload. You confirm each student face to face.', 'people-outline'],
+        ]} />
+        <Text style={{ fontSize: 16, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK, marginBottom: 10 }}>Who is it for?</Text>
+        <Choice value={audience} onChange={setAudience} options={[
+          ['scope', 'My department and level', `${staff.scope.department} • ${staff.scope.level} Level`, 'school-outline'],
+          ['session', `Everyone in ${staff.scope.session}`, 'Every student of this session, in any department or level.', 'globe-outline'],
+        ]} />
         <Text style={labelStyle}>Clearance name</Text>
         <TextInput value={name} onChangeText={setName} placeholder="e.g. Hostel Clearance" placeholderTextColor="#9995B5" style={[field(tried && !name.trim()), { marginBottom: 16 }]} />
 
         <Text style={labelStyle}>Description <Text style={{ color: MUTED, fontFamily: 'Inter_500Medium', fontWeight: '500' }}>(optional)</Text></Text>
         <TextInput value={description} onChangeText={setDescription} placeholder="e.g. Upload these documents to get your hostel space." placeholderTextColor="#9995B5" style={[field(false), { marginBottom: 22 }]} />
 
-        <Text style={{ fontSize: 16, ...{ fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK } }}>Documents students upload</Text>
-        <Text style={{ fontSize: 14, color: MUTED, marginTop: 3, marginBottom: 12 }}>Add one line for each file, e.g. “Application Form”.</Text>
+        <Text style={{ fontSize: 16, ...{ fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK } }}>{mode === 'ground' ? 'What you will check in person' : 'Documents students upload'}</Text>
+        <Text style={{ fontSize: 14, color: MUTED, marginTop: 3, marginBottom: 12 }}>{mode === 'ground' ? 'Add one line for each thing, e.g. “Caution fee paid”.' : 'Add one line for each file, e.g. “Application Form”.'}</Text>
         {documents.map((item, index) => (
           <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
             <Text style={{ width: 26, fontSize: 15, fontFamily: 'Inter_700Bold', fontWeight: '700', color: MUTED }}>{index + 1}.</Text>
@@ -475,4 +544,23 @@ export function CreateClearanceScreen({ app }) {
       </View>
     </View>
   );
+}
+
+// ---------- Add / import the staff member's own students ----------
+export function AddMyStudentScreen({ app }) {
+  const { staff } = app.overview;
+  const api = useMemo(() => staffStudentsApi(app.token), [app.token]);
+  return <AddStudentScreen api={api} allowMatric nested onBack={app.back} onSaved={() => { app.bump(); app.setTab('students', 'mine'); }}
+    initial={{ department: staff.department || '', faculty: staff.faculty || '', level: '100', entryLevel: '100' }}
+    subtitle="Add your student using a JAMB or matriculation number. Their Clearance ID is emailed to them straight away." />;
+}
+
+export function ImportMyStudentsScreen({ app }) {
+  const api = useMemo(() => staffStudentsApi(app.token), [app.token]);
+  return <ImportStudentsScreen api={api} allowMatric nested onBack={app.back} onManual={() => { app.back(); app.go('add-student'); }} onValidated={(batch) => app.go('import-results', { batch })} />;
+}
+
+export function ImportMyResultsScreen({ app, params }) {
+  const api = useMemo(() => staffStudentsApi(app.token), [app.token]);
+  return <ImportResultsScreen api={api} batch={params.batch} onBack={app.back} onCommitted={() => { app.bump(); app.setTab('students', 'mine'); }} />;
 }

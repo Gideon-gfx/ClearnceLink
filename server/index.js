@@ -2,8 +2,9 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { sendOtpEmail } = require('./mailer');
+const { sendOtpEmail, sendBugReportEmail } = require('./mailer');
 const { expiryOf, isExpired } = require('./subscription');
+const { configurePush, registerPushToken, removePushToken } = require('./push');
 
 const { openStore } = require('./store');
 
@@ -45,13 +46,15 @@ async function readJson(req, limit = 100_000) {
 async function main() {
 const store = await openStore();
 ({ data, save, files } = store);
+configurePush(data, save);
 console.log(`Storage: ${store.backend === 'mongodb' ? 'MongoDB' : 'local JSON file'}, files: ${store.filesBackend === 'cloudinary' ? 'Cloudinary' : store.backend === 'mongodb' ? 'MongoDB (GridFS)' : 'local folder'}`);
 const handleStudent = require('./student').createHandler({ data, save, send, readJson, hashPassword, publicUser, files, isProduction: process.env.NODE_ENV === 'production' });
 const handleInstitution = require('./institution').createHandler({ data, save, send, readJson, files });
 const handlePayments = require('./payments').createHandler({ data, save, send, readJson, publicUser });
-const handleStaff = require('./staff').createHandler({ data, save, send, readJson, hashPassword, publicUser, files, studentCore: handleStudent.core });
+const handleStaff = require('./staff').createHandler({ data, save, send, readJson, hashPassword, publicUser, files, studentCore: handleStudent.core, manageStudents: handleInstitution });
 
 require('./reminders').start({ data, save });
+const bugReportTimes = new Map();
 
 for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { store.close().finally(() => process.exit(0)); });
 
@@ -60,6 +63,41 @@ const server = http.createServer(async (req, res) => {
   const route = new URL(req.url, 'http://localhost').pathname;
   if (route === '/api/health' && req.method === 'GET') return send(res, 200, { ok: true });
   try {
+    if (route === '/api/push-tokens' && ['POST', 'DELETE'].includes(req.method)) {
+      const token = String(req.headers.authorization || '').replace(/^Bearer /, '');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const session = data.sessions.find((item) => item.tokenHash === tokenHash && item.expiresAt > Date.now());
+      const user = session && data.users.find((item) => item.id === session.userId);
+      if (!user || !['student', 'staff', 'institution'].includes(user.role)) return send(res, 401, { error: 'Sign in to enable notifications.' });
+      const input = await readJson(req);
+      const pushToken = String(input.pushToken || '');
+      if (!/^(Expo|Exponent)PushToken\[[\w-]+\]$/.test(pushToken)) return send(res, 400, { error: 'Invalid device notification token.' });
+      const ownerId = user.role === 'student' ? user.studentId : user.role === 'staff' ? user.staffId : user.id;
+      if (!ownerId) return send(res, 400, { error: 'Account is missing its notification owner.' });
+      if (req.method === 'POST') registerPushToken(user.role, ownerId, pushToken, String(input.platform || '').slice(0, 20));
+      else removePushToken(user.role, ownerId, pushToken);
+      return send(res, 200, { ok: true });
+    }
+    if (route === '/api/bug-reports' && req.method === 'POST') {
+      const address = String(req.socket.remoteAddress || 'unknown');
+      const current = Date.now();
+      const recent = (bugReportTimes.get(address) || []).filter((time) => current - time < 60 * 60 * 1000);
+      if (recent.length >= 5) return send(res, 429, { error: 'Too many reports. Please try again later.' });
+      const input = await readJson(req, 5_000);
+      const description = String(input.description || '').trim();
+      if (description.length < 10 || description.length > 2000) return send(res, 400, { error: 'Describe the issue in 10 to 2,000 characters.' });
+      const token = String(req.headers.authorization || '').replace(/^Bearer /, '');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const session = data.sessions.find((item) => item.tokenHash === tokenHash && item.expiresAt > current);
+      const account = session && data.users.find((item) => item.id === session.userId);
+      const report = { id: crypto.randomUUID(), createdAt: new Date(current).toISOString(), description, screen: String(input.screen || 'unknown').slice(0, 100), role: account?.role || 'guest', platform: String(input.platform || 'unknown').slice(0, 30), accountEmail: account?.email || null };
+      data.bugReports ||= [];
+      data.bugReports.push(report);
+      save();
+      bugReportTimes.set(address, [...recent, current]);
+      sendBugReportEmail(report).then(() => { report.emailedAt = new Date().toISOString(); save(); }).catch((error) => console.error(`Bug report ${report.id} email failed: ${error.message}`));
+      return send(res, 201, { id: report.id, message: 'Bug report received.' });
+    }
     // Development only: stands in for the platform's verification step so a new institution account can be tested.
     if (route === '/api/dev/verify-institution' && req.method === 'POST' && process.env.NODE_ENV !== 'production') {
       const input = await readJson(req);

@@ -5,7 +5,7 @@ import { ActivityIndicator, BackHandler, StatusBar, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiRequest } from '../api';
 import { BottomTabs, MUTED, PURPLE, SolidButton } from './ui';
-import { CreateClearanceScreen, DocumentsScreen, RejectScreen, StudentDetailsScreen, TakeActionScreen, ViewDocumentScreen } from './flow';
+import { AddMyStudentScreen, CreateClearanceScreen, DocumentsScreen, ImportMyResultsScreen, ImportMyStudentsScreen, RejectScreen, StudentDetailsScreen, TakeActionScreen, ViewDocumentScreen } from './flow';
 import { ClearancesScreen, HomeScreen, NotificationsScreen, ProfileScreen, StudentsScreen } from './screens';
 
 const TABS = [
@@ -14,7 +14,7 @@ const TABS = [
   { key: 'clearances', label: 'Clearances', icon: 'shield-checkmark' },
   { key: 'profile', label: 'Profile', icon: 'person' },
 ];
-const SCREENS = { student: StudentDetailsScreen, documents: DocumentsScreen, view: ViewDocumentScreen, action: TakeActionScreen, reject: RejectScreen, 'create-clearance': CreateClearanceScreen };
+const SCREENS = { student: StudentDetailsScreen, documents: DocumentsScreen, view: ViewDocumentScreen, action: TakeActionScreen, reject: RejectScreen, 'create-clearance': CreateClearanceScreen, 'add-student': AddMyStudentScreen, 'import-students': ImportMyStudentsScreen, 'import-results': ImportMyResultsScreen };
 const TAB_SCREENS = { home: HomeScreen, students: StudentsScreen, clearances: ClearancesScreen, notifications: NotificationsScreen, profile: ProfileScreen };
 
 export default function StaffApp({ session, onSignOut }) {

@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { sendOtpEmail, sendWelcomeEmail } = require('./mailer');
 const { stampDocument } = require('./stamp');
+const { pushTo } = require('./push');
 
 
 const PASSWORD_RULE = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -64,9 +65,13 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
   for (const key of ['submissions', 'notifications', 'otps', 'activations', 'completions', 'audit']) data[key] ||= [];
 
   const now = () => new Date().toISOString();
-  const audit = (actor, action, target, student) => data.audit.push({ id: crypto.randomUUID(), institutionId: student.institutionId, actor, action, target, institution: student.institutionName, at: now() });
+  const audit = (actor, action, target, student) => {
+    data.audit.push({ id: crypto.randomUUID(), institutionId: student.institutionId, actor, action, target, institution: student.institutionName, at: now() });
+    if (/^(Document uploaded|Document re-uploaded|Document approved|Document rejected|Clearance created|Clearance deleted|Cleared on the ground)$/.test(action)) void pushTo('institution', student.institutionId, action, `${actor}: ${target}`, { type: 'activity' });
+  };
   const notify = (student, type, title, body, clearanceId) => {
     data.notifications.unshift({ id: crypto.randomUUID(), studentId: student.id, type, title, body, clearanceId, read: false, createdAt: now() });
+    void pushTo('student', student.id, title, body, { type, clearanceId });
   };
 
   function studentFromRequest(req) {
@@ -95,7 +100,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
   }
   // A clearance belongs to one institution. If an officer created it, it also only applies to students in that officer's scope.
   const visibleTo = (student, clearance) => (clearance.institutionId || null) === (student.institutionId || null)
-    && (!clearance.scope || (student.department === clearance.scope.department && student.level === clearance.scope.level && student.session === clearance.scope.session));
+    && (!clearance.scope || ((!clearance.scope.department || student.department === clearance.scope.department) && (!clearance.scope.level || student.level === clearance.scope.level) && (!clearance.scope.session || student.session === clearance.scope.session)));
   function buildClearance(student, clearance, detail) {
     const stages = clearance.stages.map((stage) => {
       const requirements = stage.requirements.map((requirement) => {
@@ -165,7 +170,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       for (const owner of [institution, reviewer]) {
         if (!owner?.stamp?.fileId) continue;
         const image = await files.get(owner.stamp.fileId);
-        if (image) marks.push({ image, mimeType: owner.stamp.mimeType });
+        if (image) marks.push({ image, mimeType: owner.stamp.mimeType, placement: owner.stamp.placement });
       }
       if (!marks.length) return;
       const source = await files.get(submission.fileId);

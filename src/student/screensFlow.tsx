@@ -10,6 +10,8 @@ import QRCodeSvg from 'react-native-qrcode-svg';
 import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { apiBaseUrl, apiRequest } from '../api';
 import { downloadAndShare, printFile, stampedName } from '../components/downloadFile';
+import FolderExport from './FolderExport';
+import PdfView from '../components/PdfView';
 import { Card, ErrorText, INK, InstitutionMark, LINE, MUTED, PURPLE, ClearanceChain, ScreenHeader, SolidButton, StatusBadge, fileSource, formatDate, formatSize, shortName, useBusy } from './ui';
 
 const ALLOWED = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -161,6 +163,7 @@ export function ClearanceDetailScreen({ app, params }) {
   else if (fresh) cta = { title: 'Upload Next Document', onPress: () => setUploadFor(fresh) };
   else if (stage.status === 'cleared' && nextStage) cta = { title: `Continue to ${nextStage.name}`, onPress: () => setSelected(nextStage.id) };
   else if (stage.status === 'cleared') cta = { title: 'Stage Cleared', disabled: true };
+  else if (stage.requirements.some((item) => item.kind === 'ground')) cta = { title: 'Awaiting Clearance Officer', disabled: true };
   else if (uploads.length === 0) cta = { title: 'Awaiting Institution Verification', disabled: true };
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
@@ -275,7 +278,8 @@ export function RequirementScreen({ app, params }) {
   const preview = picked || (submission?.fileId ? { name: submission.fileName, size: submission.size, mimeType: submission.mimeType, remote: true } : null);
   const isImage = preview?.mimeType?.startsWith('image/');
   const source = picked ? { uri: picked.uri } : submission?.fileId ? fileSource(submission.fileId, app.token) : null;
-  const pending = requirement.status === 'pending' || requirement.status === 'resubmitted' || (requirement.kind === 'institution' && requirement.status !== 'cleared');
+  const showStamped = requirement.status === 'cleared' && Boolean(submission?.stampedFileId) && !picked;
+  const pending = requirement.status === 'pending' || requirement.status === 'resubmitted' || ((requirement.kind === 'institution' || requirement.kind === 'ground') && requirement.status !== 'cleared');
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
       <ScreenHeader title="Upload Document" onBack={app.back} />
@@ -291,16 +295,23 @@ export function RequirementScreen({ app, params }) {
 
         {preview ? (
           <View style={{ marginBottom: 14 }}>
-            {isImage && source ? (
+            {showStamped ? (
+              <View>
+                <PdfView mode="full" url={`${apiBaseUrl}/api/files/${submission.stampedFileId}`} token={app.token} style={{ height: 430, borderRadius: 16 }} />
+                <View style={{ position: 'absolute', left: 10, top: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: '#dcfce7', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
+                  <Ionicons name="ribbon" size={14} color="#15803d" style={{ marginRight: 4 }} /><Text style={{ fontSize: 13, fontWeight: '700', color: '#15803d' }}>Stamped copy</Text>
+                </View>
+              </View>
+            ) : isImage && source ? (
               <View>
                 <Image source={source} resizeMode="cover" style={{ width: '100%', height: 300, borderRadius: 16, backgroundColor: '#f3f0fd' }} />
                 {picked ? <Pressable accessibilityRole="button" accessibilityLabel="Remove file" onPress={() => setPicked(null)} style={{ position: 'absolute', right: 10, top: 10, width: 34, height: 34, borderRadius: 17, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' }}><Ionicons name="trash-outline" size={18} color="#dc2626" /></Pressable> : null}
               </View>
             ) : (
-              <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
-                <Ionicons name="document" size={44} color={PURPLE} />
-                {picked ? <Pressable onPress={() => setPicked(null)} style={{ position: 'absolute', right: 10, top: 10, padding: 6 }}><Ionicons name="trash-outline" size={18} color="#dc2626" /></Pressable> : null}
-              </Card>
+              <View>
+                <PdfView mode="full" url={picked ? picked.uri : `${apiBaseUrl}/api/files/${submission?.fileId}`} token={app.token} style={{ height: 380, borderRadius: 16 }} />
+                {picked ? <Pressable accessibilityRole="button" accessibilityLabel="Remove file" onPress={() => setPicked(null)} style={{ position: 'absolute', right: 10, top: 10, width: 34, height: 34, borderRadius: 17, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' }}><Ionicons name="trash-outline" size={18} color="#dc2626" /></Pressable> : null}
+              </View>
             )}
             <View style={{ marginTop: 10, flexDirection: 'row', justifyContent: 'space-between' }}>
               <View style={{ flex: 1 }}><Text style={{ fontSize: 13, color: MUTED }}>File Name</Text><Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: INK }}>{preview.name}</Text></View>
@@ -329,10 +340,10 @@ export function RequirementScreen({ app, params }) {
             {pending ? (
               <Card style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a', flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name="time" size={22} color="#d97706" />
-                <Text style={{ flex: 1, marginLeft: 10, fontSize: 15, color: '#92400e' }}>{requirement.kind === 'institution' ? 'The institution will verify this from its own records.' : `${requirement.status === 'resubmitted' ? 'Re-submitted' : 'Submitted'} ${formatDate(submission?.submittedAt)} — pending review.`}</Text>
+                <Text style={{ flex: 1, marginLeft: 10, fontSize: 15, color: '#92400e' }}>{requirement.kind === 'ground' ? 'Your clearance officer will clear this in person.' : requirement.kind === 'institution' ? 'The institution will verify this from its own records.' : `${requirement.status === 'resubmitted' ? 'Re-submitted' : 'Submitted'} ${formatDate(submission?.submittedAt)} — pending review.`}</Text>
               </Card>
             ) : null}
-            {requirement.status === 'cleared' && submission?.stampedFileId ? <View style={{ marginTop: 6 }}><StampedActions sub={submission} token={app.token} /></View> : null}
+            {requirement.status === 'cleared' && submission?.fileId ? <View style={{ marginTop: 6 }}><ClearedActions sub={submission} token={app.token} /></View> : null}
             <ErrorText>{uploadError}</ErrorText>
           </View>
         )}
@@ -395,12 +406,26 @@ function StampedActions({ sub, token }) {
   );
 }
 
+// Actions for a cleared document: its stamped copy when there is one (download or print), otherwise the original.
+function ClearedActions({ sub, token }) {
+  const { busy, error, run } = useBusy();
+  if (sub.stampedFileId) return <StampedActions sub={sub} token={token} />;
+  return (
+    <View>
+      <SolidButton icon="download-outline" title="Download" busy={busy} onPress={() => run(() => downloadAndShare(`${apiBaseUrl}/api/files/${sub.fileId}`, sub.fileName, token, sub.mimeType))} />
+      <ErrorText>{error}</ErrorText>
+    </View>
+  );
+}
+
 export function ClearedScreen({ app, params }) {
   const { data, error } = useClearance(app, params.clearanceId);
+  const { busy, error: downloadError, run } = useBusy();
   if (!data) return <Loading title="Cleared" error={error} onBack={app.back} />;
   const clearance = data.clearance;
   const { stage, requirement } = findRequirement(clearance, params.requirementId);
   const sub = requirement.submission;
+  const files = clearance.stages.flatMap((item) => item.requirements).filter((item) => item.status === 'cleared' && item.submission?.fileId).map((item) => (item.submission.stampedFileId ? { fileId: item.submission.stampedFileId, fileName: item.submission.fileName || item.name, stamped: true } : { fileId: item.submission.fileId, fileName: item.submission.fileName || item.name, stamped: false }));
   const next = clearance.stages.find((item) => item.status !== 'cleared');
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
@@ -414,6 +439,7 @@ export function ClearedScreen({ app, params }) {
           <Text style={{ fontSize: 16, color: MUTED, marginTop: 6, textAlign: 'center' }}>Your {requirement.name} has been approved.</Text>
         </View>
         <Card style={{ marginBottom: 16 }}>
+          {sub?.fileName ? <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}><Ionicons name="document-text-outline" size={20} color={PURPLE} style={{ marginRight: 12 }} /><View style={{ flex: 1 }}><Text style={{ fontSize: 13, color: MUTED }}>Your uploaded file</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{sub.fileName}</Text></View></View> : null}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
             <Ionicons name="person-outline" size={18} color={MUTED} style={{ marginRight: 12 }} />
             <View><Text style={{ fontSize: 13, color: MUTED }}>Approved by</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{sub?.reviewer || stage.name}</Text></View>
@@ -423,10 +449,16 @@ export function ClearedScreen({ app, params }) {
             <View><Text style={{ fontSize: 13, color: MUTED }}>Date & time</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{formatDate(sub?.reviewedAt)}</Text></View>
           </View>
         </Card>
-        {sub?.stampedFileId ? <StampedActions sub={sub} token={app.token} /> : null}
+        {sub?.stampedFileId ? <View style={{ marginBottom: 12 }}><Text style={{ fontSize: 14, color: MUTED, marginBottom: 8, textAlign: 'center' }}>Your approved PDF includes the institution stamp and reviewer signature when provided.</Text><SolidButton variant="outline" icon="eye-outline" title="View Stamped Copy" onPress={() => run(() => printFile(`${apiBaseUrl}/api/files/${sub.stampedFileId}`, stampedName(sub.fileName), app.token))} /></View> : null}
         {sub?.fileId ? <View style={{ marginBottom: 10 }}><SolidButton variant="outline" title="View Details" onPress={() => app.replace('requirement', { clearanceId: clearance.id, requirementId: requirement.id })} /></View> : null}
         <SolidButton title={next ? 'Continue to Next Step' : 'View Clearance'} onPress={() => (clearance.status === 'completed' ? app.replace('completed', { id: clearance.id }) : app.back())} />
       </ScrollView>
+      {sub?.fileId ? <View style={{ padding: 12, borderTopWidth: 1, borderColor: LINE, backgroundColor: 'white' }}>
+        <ErrorText>{downloadError}</ErrorText>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flex: 1 }}><SolidButton icon="download-outline" title="Download" busy={busy} onPress={() => run(() => (sub.stampedFileId ? downloadAndShare(`${apiBaseUrl}/api/files/${sub.stampedFileId}`, stampedName(sub.fileName), app.token, 'application/pdf') : downloadAndShare(`${apiBaseUrl}/api/files/${sub.fileId}`, sub.fileName, app.token, sub.mimeType)))} /></View>
+        </View>
+      </View> : null}
     </View>
   );
 }
