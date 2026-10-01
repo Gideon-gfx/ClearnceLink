@@ -26,3 +26,7 @@ server/data/
 *.sw?
 
 .env
+
+# Private keys: never commit these
+*-firebase-adminsdk-*.json
+*service-account*.json
