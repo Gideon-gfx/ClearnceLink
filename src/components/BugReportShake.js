@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Accelerometer } from 'expo-sensors';
@@ -11,6 +12,7 @@ const settingFile = () => new File(Paths.document, 'shake-report-setting.json');
 export const useBugReport = () => useContext(BugReportContext);
 
 export function BugReportProvider({ children }) {
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const [enabled, setEnabled] = useState(true);
   const [visible, setVisible] = useState(false);
@@ -48,16 +50,16 @@ export function BugReportProvider({ children }) {
   const toggle = (value) => {
     setEnabled(value);
     if (Platform.OS !== 'web') {
-      try { const file = settingFile(); if (!file.exists) file.create(); file.write(JSON.stringify({ enabled: value })); } catch { setError('Could not save this setting.'); }
+      try { const file = settingFile(); if (!file.exists) file.create(); file.write(JSON.stringify({ enabled: value })); } catch { setError(t("Could not save this setting.")); }
     }
   };
   const submit = async () => {
-    if (description.trim().length < 10) { setError('Describe the issue in at least 10 characters.'); return; }
+    if (description.trim().length < 10) { setError(t("Describe the issue in at least 10 characters.")); return; }
     setBusy(true); setError('');
     try {
       await apiRequest('/api/bug-reports', { description: description.trim(), screen: location.screen, role: location.role, platform: Platform.OS }, location.token, 'POST');
       setDescription(''); setSent(true);
-    } catch (cause) { setError(cause.message); }
+    } catch (cause) { setError(t(cause.message)); }
     finally { setBusy(false); }
   };
   return <BugReportContext.Provider value={{ open, setLocation }}>
@@ -69,11 +71,11 @@ export function BugReportProvider({ children }) {
           <Animated.View style={{ transform: [{ translateY: offset }], width: '100%', backgroundColor: 'white', borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '86%', paddingTop: 10, paddingBottom: Math.max(insets.bottom, 12) }}>
             <View style={{ width: 42, height: 5, borderRadius: 3, backgroundColor: '#D9D2EA', alignSelf: 'center', marginBottom: 15 }} />
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 28 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}><View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: '#EEE6FF', alignItems: 'center', justifyContent: 'center' }}><Ionicons name="bug-outline" size={22} color="#5A17C9" /></View><Text style={{ flex: 1, marginLeft: 11, color: '#171548', fontSize: 21, fontFamily: 'Inter_700Bold' }}>Report a bug</Text><Pressable onPress={() => setVisible(false)} accessibilityLabel="Close bug report"><Ionicons name="close" size={25} color="#6E6B91" /></Pressable></View>
-              <Text style={{ color: '#6E6B91', fontSize: 14, lineHeight: 20, marginBottom: 15 }}>Tell us what happened. The current screen is included automatically.</Text>
-              {sent ? <Text style={{ color: '#15803D', fontSize: 15, marginBottom: 14 }}>Thank you. Your bug report was sent.</Text> : <><TextInput multiline value={description} onChangeText={setDescription} placeholder="What went wrong? What were you trying to do?" placeholderTextColor="#9993B1" maxLength={2000} textAlignVertical="top" style={{ minHeight: 125, borderWidth: 1.5, borderColor: '#D9D2EA', borderRadius: 14, padding: 14, color: '#171548', fontSize: 15, marginBottom: 11 }} /><Pressable disabled={busy} onPress={submit} style={{ height: 50, borderRadius: 13, backgroundColor: '#5A17C9', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1 }}><Text style={{ color: 'white', fontSize: 15, fontFamily: 'Inter_600SemiBold' }}>{busy ? 'Sending...' : 'Send Report'}</Text></Pressable></>}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}><View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: '#EEE6FF', alignItems: 'center', justifyContent: 'center' }}><Ionicons name="bug-outline" size={22} color="#5A17C9" /></View><Text style={{ flex: 1, marginLeft: 11, color: '#171548', fontSize: 21, fontFamily: 'Inter_700Bold' }}>{t("Report a bug")}</Text><Pressable onPress={() => setVisible(false)} accessibilityLabel="Close bug report"><Ionicons name="close" size={25} color="#6E6B91" /></Pressable></View>
+              <Text style={{ color: '#6E6B91', fontSize: 14, lineHeight: 20, marginBottom: 15 }}>{t("Tell us what happened. The current screen is included automatically.")}</Text>
+              {sent ? <Text style={{ color: '#15803D', fontSize: 15, marginBottom: 14 }}>{t("Thank you. Your bug report was sent.")}</Text> : <><TextInput multiline value={description} onChangeText={setDescription} placeholder={t("What went wrong? What were you trying to do?")} placeholderTextColor="#9993B1" maxLength={2000} textAlignVertical="top" style={{ minHeight: 125, borderWidth: 1.5, borderColor: '#D9D2EA', borderRadius: 14, padding: 14, color: '#171548', fontSize: 15, marginBottom: 11 }} /><Pressable disabled={busy} onPress={submit} style={{ height: 50, borderRadius: 13, backgroundColor: '#5A17C9', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1 }}><Text style={{ color: 'white', fontSize: 15, fontFamily: 'Inter_600SemiBold' }}>{busy ? t("Sending...") : t("Send Report")}</Text></Pressable></>}
               {error ? <Text style={{ color: '#DC2626', marginTop: 9 }}>{error}</Text> : null}
-              <View style={{ marginTop: 18, paddingTop: 15, borderTopWidth: 1, borderColor: '#E8E4F2', flexDirection: 'row', alignItems: 'center' }}><View style={{ flex: 1 }}><Text style={{ color: '#171548', fontSize: 15, fontFamily: 'Inter_600SemiBold' }}>Shake to report</Text><Text style={{ color: '#6E6B91', fontSize: 12, marginTop: 2 }}>Turn this shortcut on or off</Text></View><Switch value={enabled} onValueChange={toggle} trackColor={{ false: '#D9D2EA', true: '#B79AF2' }} thumbColor={enabled ? '#5A17C9' : '#FFFFFF'} /></View>
+              <View style={{ marginTop: 18, paddingTop: 15, borderTopWidth: 1, borderColor: '#E8E4F2', flexDirection: 'row', alignItems: 'center' }}><View style={{ flex: 1 }}><Text style={{ color: '#171548', fontSize: 15, fontFamily: 'Inter_600SemiBold' }}>{t("Shake to report")}</Text><Text style={{ color: '#6E6B91', fontSize: 12, marginTop: 2 }}>{t("Turn this shortcut on or off")}</Text></View><Switch value={enabled} onValueChange={toggle} trackColor={{ false: '#D9D2EA', true: '#B79AF2' }} thumbColor={enabled ? '#5A17C9' : '#FFFFFF'} /></View>
             </ScrollView>
           </Animated.View>
         </KeyboardAvoidingView>

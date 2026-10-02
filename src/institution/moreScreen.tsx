@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useState } from 'react';
@@ -18,6 +19,7 @@ async function toBase64(uri) {
 }
 
 export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onNavigate, onSignOut, onBack }) {
+  const { t } = useLanguage();
   const { open: openBugReport } = useBugReport();
   const logoUri = useLogoUri(logoUrl, token);
   const [menu, setMenu] = useState(false);
@@ -30,18 +32,18 @@ export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onNavi
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
     const mimeType = asset.mimeType === 'image/png' ? 'image/png' : 'image/jpeg';
-    if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setLogoError('The logo must be under 2MB.'); return; }
+    if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setLogoError(t("The logo must be under 2MB.")); return; }
     setUploading(true);
     try {
       const response = await fetch(`${apiBaseUrl}/api/institution/logo`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: asset.fileName || 'logo', mimeType, base64: await toBase64(asset.uri) }) });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Could not replace the logo.');
+      if (!response.ok) throw new Error(body.error || t("Could not replace the logo."));
       onLogoChanged();
-    } catch (cause) { setLogoError(cause.message); }
+    } catch (cause) { setLogoError(t(cause.message)); }
     finally { setUploading(false); }
   };
   const [signingOut, askSignOut, signOutSheet] = useSignOut(onSignOut);
-  return <View style={{ flex: 1, backgroundColor: 'white' }}><ScreenTitle title="More" onBack={onBack} /><ScrollView contentContainerStyle={{ paddingHorizontal: 17, paddingTop: 10, paddingBottom: 35 }}>
+  return <View style={{ flex: 1, backgroundColor: 'white' }}><ScreenTitle title={t("More")} onBack={onBack} /><ScrollView contentContainerStyle={{ paddingHorizontal: 17, paddingTop: 10, paddingBottom: 35 }}>
     <Pressable accessibilityRole="button" accessibilityLabel="Institution logo. View or replace" onPress={() => setMenu(true)}>
       <Card style={{ marginTop: 16, alignItems: 'center', backgroundColor: '#F8F5FF' }}>
         <View>
@@ -63,24 +65,24 @@ export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onNavi
             {rich ? <LinearGradient colors={theme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={shape}>{chip}</LinearGradient> : <View style={{ ...shape, backgroundColor: theme.tint, borderWidth: 1.5, borderColor: tone }}>{chip}</View>}
           </Pressable>;
         })()}
-        <Text style={{ marginTop: 8, color: C.muted, fontSize: 13 }}>Institution Administrator</Text>
-        <Text style={{ marginTop: 8, color: C.purple, fontSize: 12, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>Tap the logo to view or replace it</Text>
+        <Text style={{ marginTop: 8, color: C.muted, fontSize: 13 }}>{t('administrator')}</Text>
+        <Text style={{ marginTop: 8, color: C.purple, fontSize: 12, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{t("Tap the logo to view or replace it")}</Text>
       </Card>
     </Pressable>
     <ErrorBanner message={logoError} />
-    <Heading>Institution Controls</Heading>
-    <Pressable onPress={openBugReport} style={{ height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 8, borderWidth: 1.5, borderColor: C.border, borderRadius: 14, backgroundColor: 'white' }}><Ionicons name="bug-outline" size={23} color={C.purple} /><Text style={{ flex: 1, marginLeft: 13, color: C.ink, fontSize: 15, fontFamily: 'Inter_600SemiBold' }}>Report a bug</Text><Ionicons name="chevron-forward" size={19} color={C.muted} /></Pressable>
-    {actions.map(([label, icon, target]) => <Pressable key={target} onPress={() => onNavigate(target)} style={{ height: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, borderWidth: 2, borderColor: C.border, borderRadius: 14, backgroundColor: 'white' }}><Ionicons name={icon} size={24} color={C.purple} /><Text style={{ flex: 1, marginLeft: 14, color: C.ink, fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{label}</Text><Ionicons name="chevron-forward" size={21} color={C.muted} /></Pressable>)}
-    <Pressable accessibilityRole="button" onPress={askSignOut} style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 20, borderWidth: 2, borderColor: '#FFC4CF', borderRadius: 14, backgroundColor: '#FFF5F7' }}>{signingOut ? <ActivityIndicator color={C.red} /> : <Ionicons name="log-out-outline" size={22} color={C.red} />}<Text style={{ marginLeft: 8, color: C.red, fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{signingOut ? 'Signing out...' : 'Sign Out'}</Text></Pressable>{signOutSheet}
+    <Heading>{t("Institution Controls")}</Heading>
+    <Pressable onPress={openBugReport} style={{ height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 8, borderWidth: 1.5, borderColor: C.border, borderRadius: 14, backgroundColor: 'white' }}><Ionicons name="bug-outline" size={23} color={C.purple} /><Text style={{ flex: 1, marginLeft: 13, color: C.ink, fontSize: 15, fontFamily: 'Inter_600SemiBold' }}>{t("Report a bug")}</Text><Ionicons name="chevron-forward" size={19} color={C.muted} /></Pressable>
+    {actions.map(([label, icon, target]) => <Pressable key={target} onPress={() => onNavigate(target)} style={{ height: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, borderWidth: 2, borderColor: C.border, borderRadius: 14, backgroundColor: 'white' }}><Ionicons name={icon} size={24} color={C.purple} /><Text style={{ flex: 1, marginLeft: 14, color: C.ink, fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{t(label)}</Text><Ionicons name="chevron-forward" size={21} color={C.muted} /></Pressable>)}
+    <Pressable accessibilityRole="button" onPress={askSignOut} style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 20, borderWidth: 2, borderColor: '#FFC4CF', borderRadius: 14, backgroundColor: '#FFF5F7' }}>{signingOut ? <ActivityIndicator color={C.red} /> : <Ionicons name="log-out-outline" size={22} color={C.red} />}<Text style={{ marginLeft: 8, color: C.red, fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{signingOut ? t('signingOut') : t('signOut')}</Text></Pressable>{signOutSheet}
   </ScrollView>
   <Modal transparent visible={menu} animationType="fade" onRequestClose={() => setMenu(false)}>
     <Pressable style={{ flex: 1, backgroundColor: 'rgba(23,19,43,0.5)', justifyContent: 'flex-end' }} onPress={() => setMenu(false)}>
       <Pressable style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28 }} onPress={() => {}}>
         <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: '#D6D3DF', marginBottom: 14 }} />
-        <Text style={{ fontSize: 19, color: C.ink, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', marginBottom: 12 }}>Institution logo</Text>
-        {logoUri ? <Pressable accessibilityRole="button" onPress={() => { setMenu(false); setViewing(true); }} style={{ height: 60, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 10, borderWidth: 2, borderColor: C.border, borderRadius: 14 }}><Ionicons name="eye-outline" size={24} color={C.purple} /><Text style={{ marginLeft: 14, fontSize: 16, color: C.ink, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>View logo</Text></Pressable> : null}
-        <Pressable accessibilityRole="button" onPress={replaceLogo} style={{ height: 60, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 10, borderWidth: 2, borderColor: C.border, borderRadius: 14 }}><Ionicons name="swap-horizontal" size={24} color={C.purple} /><Text style={{ marginLeft: 14, fontSize: 16, color: C.ink, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{logoUri ? 'Replace logo' : 'Upload logo'}</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={() => setMenu(false)} style={{ height: 56, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 16, color: C.muted, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>Cancel</Text></Pressable>
+        <Text style={{ fontSize: 19, color: C.ink, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', marginBottom: 12 }}>{t("Institution logo")}</Text>
+        {logoUri ? <Pressable accessibilityRole="button" onPress={() => { setMenu(false); setViewing(true); }} style={{ height: 60, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 10, borderWidth: 2, borderColor: C.border, borderRadius: 14 }}><Ionicons name="eye-outline" size={24} color={C.purple} /><Text style={{ marginLeft: 14, fontSize: 16, color: C.ink, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{t("View logo")}</Text></Pressable> : null}
+        <Pressable accessibilityRole="button" onPress={replaceLogo} style={{ height: 60, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 10, borderWidth: 2, borderColor: C.border, borderRadius: 14 }}><Ionicons name="swap-horizontal" size={24} color={C.purple} /><Text style={{ marginLeft: 14, fontSize: 16, color: C.ink, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{logoUri ? t("Replace logo") : t("Upload logo")}</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => setMenu(false)} style={{ height: 56, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 16, color: C.muted, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{t("Cancel")}</Text></Pressable>
       </Pressable>
     </Pressable>
   </Modal>

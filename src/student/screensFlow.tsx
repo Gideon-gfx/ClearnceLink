@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useEffect, useRef, useState } from 'react';
 import ErrorBanner from '../components/ErrorBanner';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -74,6 +75,7 @@ function qrSvg(text) {
 
 // ---------- Upload overlay: slides up from the bottom of the clearance screen ----------
 function UploadSheet({ requirement, clearance, app, onClose }) {
+  const { t } = useLanguage();
   const [picked, setPicked] = useState(null);
   const { busy, error, setError, run } = useBusy();
   const last = useRef(null);
@@ -85,7 +87,7 @@ function UploadSheet({ requirement, clearance, app, onClose }) {
 
   const accept = (file) => {
     const mime = file.mimeType || (/\.png$/i.test(file.name) ? 'image/png' : /\.pdf$/i.test(file.name) ? 'application/pdf' : 'image/jpeg');
-    if (!ALLOWED.includes(mime)) { setError('Only PDF, JPG and PNG files are supported.'); return; }
+    if (!ALLOWED.includes(mime)) { setError(t("Only PDF, JPG and PNG files are supported.")); return; }
     if (file.size && file.size > req.maxMb * 1024 * 1024) { setError(`File is larger than ${req.maxMb}MB.`); return; }
     setError('');
     setPicked({ uri: file.uri, name: file.name, size: file.size, mimeType: mime });
@@ -113,7 +115,7 @@ function UploadSheet({ requirement, clearance, app, onClose }) {
         <View style={{ backgroundColor: 'white', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 26, maxHeight: '88%' }}>
           <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: '#D6D3DF', marginBottom: 14 }} />
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <Text style={{ fontSize: 21, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK, marginBottom: 12 }}>Upload Document</Text>
+            <Text style={{ fontSize: 21, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK, marginBottom: 12 }}>{t("Upload Document")}</Text>
             <Card style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
               <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#f0edff', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}><Ionicons name="document-text-outline" size={22} color={PURPLE} /></View>
               <View style={{ flex: 1 }}>
@@ -131,10 +133,10 @@ function UploadSheet({ requirement, clearance, app, onClose }) {
               </View>
             ) : null}
             <View style={{ gap: 10 }}>
-              {acceptsPdf ? <SolidButton variant="outline" icon="document-text-outline" title={picked ? 'Change PDF' : 'Choose PDF'} onPress={choosePdf} /> : null}
-              <SolidButton variant="outline" icon="image-outline" title={picked ? 'Change Photo' : 'Choose Photo'} onPress={choosePhoto} />
+              {acceptsPdf ? <SolidButton variant="outline" icon="document-text-outline" title={picked ? t("Change PDF") : t("Choose PDF")} onPress={choosePdf} /> : null}
+              <SolidButton variant="outline" icon="image-outline" title={picked ? t("Change Photo") : t("Choose Photo")} onPress={choosePhoto} />
               <ErrorText>{error}</ErrorText>
-              <SolidButton title={picked ? 'Upload Document' : 'Select a file to continue'} disabled={!picked} busy={busy} onPress={submit} />
+              <SolidButton title={picked ? t("Upload Document") : t("Select a file to continue")} disabled={!picked} busy={busy} onPress={submit} />
               <Text style={{ textAlign: 'center', fontSize: 13, color: MUTED }}>Accepted: PDF, JPG, PNG · Max {req.maxMb}MB. The file is sent to your reviewer.</Text>
             </View>
           </ScrollView>
@@ -146,10 +148,11 @@ function UploadSheet({ requirement, clearance, app, onClose }) {
 
 // ---------- Clearance detail (stage stepper + required documents) ----------
 export function ClearanceDetailScreen({ app, params }) {
+  const { t } = useLanguage();
   const { data, error } = useClearance(app, params.id);
   const [selected, setSelected] = useState(null);
   const [uploadFor, setUploadFor] = useState(null);
-  if (!data) return <Loading title="Clearance" error={error} onBack={app.back} />;
+  if (!data) return <Loading title={t("Clearance")} error={error} onBack={app.back} />;
   const clearance = data.clearance;
   const stage = clearance.stages.find((item) => item.id === selected) || clearance.stages.find((item) => item.status !== 'cleared') || clearance.stages[0];
   const uploads = stage.requirements.filter((item) => item.kind === 'upload');
@@ -158,13 +161,13 @@ export function ClearanceDetailScreen({ app, params }) {
   const nextStage = clearance.stages[clearance.stages.indexOf(stage) + 1];
   // A document still to upload opens the upload overlay; anything else opens its own screen.
   const openDoc = (requirement) => (requirement.kind === 'upload' && requirement.status === 'not_started' ? setUploadFor(requirement) : app.openRequirement(clearance, requirement));
-  let cta = { title: 'Submitted for Review', disabled: true };
-  if (rejected) cta = { title: 'Fix Rejected Document', onPress: () => app.openRequirement(clearance, rejected) };
-  else if (fresh) cta = { title: 'Upload Next Document', onPress: () => setUploadFor(fresh) };
+  let cta = { title: t("Submitted for Review"), disabled: true };
+  if (rejected) cta = { title: t("Fix Rejected Document"), onPress: () => app.openRequirement(clearance, rejected) };
+  else if (fresh) cta = { title: t("Upload Next Document"), onPress: () => setUploadFor(fresh) };
   else if (stage.status === 'cleared' && nextStage) cta = { title: `Continue to ${nextStage.name}`, onPress: () => setSelected(nextStage.id) };
-  else if (stage.status === 'cleared') cta = { title: 'Stage Cleared', disabled: true };
-  else if (stage.requirements.some((item) => item.kind === 'ground')) cta = { title: 'Awaiting Clearance Officer', disabled: true };
-  else if (uploads.length === 0) cta = { title: 'Awaiting Institution Verification', disabled: true };
+  else if (stage.status === 'cleared') cta = { title: t("Stage Cleared"), disabled: true };
+  else if (stage.requirements.some((item) => item.kind === 'ground')) cta = { title: t("Awaiting Clearance Officer"), disabled: true };
+  else if (uploads.length === 0) cta = { title: t("Awaiting Institution Verification"), disabled: true };
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
       <ScreenHeader title={clearance.name} onBack={app.back} />
@@ -172,13 +175,13 @@ export function ClearanceDetailScreen({ app, params }) {
         {clearance.status === 'completed' ? (
           <Card onPress={() => app.replace('completed', { id: clearance.id })} style={{ marginBottom: 14, backgroundColor: '#f0fdf4', borderColor: '#bbf7d0', flexDirection: 'row', alignItems: 'center' }}>
             <Ionicons name="checkmark-circle" size={24} color="#16a34a" />
-            <Text style={{ flex: 1, marginLeft: 10, fontSize: 16, fontWeight: '700', color: '#15803d' }}>Clearance completed — view completion actions</Text>
+            <Text style={{ flex: 1, marginLeft: 10, fontSize: 16, fontWeight: '700', color: '#15803d' }}>{t("Clearance completed — view completion actions")}</Text>
             <Ionicons name="chevron-forward" size={18} color="#15803d" />
           </Card>
         ) : null}
         {app.overview.clearances.length > 1 ? (
           <View style={{ marginBottom: 14 }}>
-            <Text style={{ fontSize: 14, color: MUTED, marginBottom: 8 }}>Your clearance path</Text>
+            <Text style={{ fontSize: 14, color: MUTED, marginBottom: 8 }}>{t("Your clearance path")}</Text>
             <ClearanceChain clearances={app.overview.clearances} currentId={clearance.id} onPress={(item) => (item.id === clearance.id ? undefined : app.replace(item.status === 'completed' ? 'completed' : 'clearance', { id: item.id }))} />
           </View>
         ) : null}
@@ -205,9 +208,9 @@ export function ClearanceDetailScreen({ app, params }) {
             <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: INK }}>{stage.name} Clearance</Text>
             <StatusBadge status={stage.status} />
           </View>
-          <Text style={{ fontSize: 15, color: MUTED, marginTop: 6 }}>{uploads.length ? 'Complete all required documents and submit for review.' : 'This step is verified by the institution from its own records.'}</Text>
+          <Text style={{ fontSize: 15, color: MUTED, marginTop: 6 }}>{uploads.length ? t("Complete all required documents and submit for review.") : t("This step is verified by the institution from its own records.")}</Text>
         </Card>
-        <Text style={{ fontSize: 17, fontWeight: '700', color: INK, marginBottom: 10 }}>Required Documents</Text>
+        <Text style={{ fontSize: 17, fontWeight: '700', color: INK, marginBottom: 10 }}>{t("Required Documents")}</Text>
         {stage.requirements.map((requirement) => {
           const s = requirement.status;
           const icon = s === 'cleared' ? ['checkmark-circle', '#16a34a'] : s === 'action_required' ? ['alert-circle', '#dc2626'] : s === 'pending' || s === 'resubmitted' ? ['time', '#d97706'] : requirement.kind === 'upload' ? ['cloud-upload-outline', PURPLE] : ['hourglass-outline', '#8b87a6'];
@@ -216,7 +219,7 @@ export function ClearanceDetailScreen({ app, params }) {
               <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#f0edff', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}><Ionicons name="document-text-outline" size={18} color={PURPLE} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: INK }}>{requirement.name}</Text>
-                <Text style={{ fontSize: 13, color: s === 'action_required' ? '#dc2626' : MUTED, marginTop: 2 }}>{s === 'not_started' ? requirement.hint : s === 'action_required' ? 'Rejected — tap to re-upload' : s === 'cleared' ? 'Cleared' : 'Pending review'}</Text>
+                <Text style={{ fontSize: 13, color: s === 'action_required' ? '#dc2626' : MUTED, marginTop: 2 }}>{s === 'not_started' ? requirement.hint : s === 'action_required' ? t("Rejected — tap to re-upload") : s === 'cleared' ? t("Cleared") : t("Pending review")}</Text>
               </View>
               <Ionicons name={icon[0]} size={24} color={icon[1]} />
             </Card>
@@ -231,6 +234,7 @@ export function ClearanceDetailScreen({ app, params }) {
 
 // ---------- Upload / view a requirement ----------
 export function RequirementScreen({ app, params }) {
+  const { t } = useLanguage();
   const { data, error } = useClearance(app, params.clearanceId);
   const [picked, setPicked] = useState(null);
   const { busy, error: uploadError, setError, run } = useBusy();
@@ -243,16 +247,16 @@ export function RequirementScreen({ app, params }) {
     const timer = setTimeout(() => pickRef.current?.(), 300);
     return () => clearTimeout(timer);
   }, [data]);
-  if (!data) return <Loading title="Upload Document" error={error} onBack={app.back} />;
+  if (!data) return <Loading title={t("Upload Document")} error={error} onBack={app.back} />;
   const clearance = data.clearance;
   const { requirement } = findRequirement(clearance, params.requirementId);
-  if (!requirement) return <Loading title="Upload Document" error="Requirement not found." onBack={app.back} />;
+  if (!requirement) return <Loading title={t("Upload Document")} error="Requirement not found." onBack={app.back} />;
   const submission = requirement.submission;
   const canUpload = requirement.kind === 'upload' && (requirement.status === 'not_started' || requirement.status === 'action_required');
 
   const accept = (file) => {
     const mime = file.mimeType || (/\.png$/i.test(file.name) ? 'image/png' : /\.pdf$/i.test(file.name) ? 'application/pdf' : 'image/jpeg');
-    if (!ALLOWED.includes(mime)) { setError('Only PDF, JPG and PNG files are supported.'); return; }
+    if (!ALLOWED.includes(mime)) { setError(t("Only PDF, JPG and PNG files are supported.")); return; }
     if (file.size && file.size > requirement.maxMb * 1024 * 1024) { setError(`File is larger than ${requirement.maxMb}MB.`); return; }
     setError('');
     setPicked({ uri: file.uri, name: file.name, size: file.size, mimeType: mime });
@@ -282,7 +286,7 @@ export function RequirementScreen({ app, params }) {
   const pending = requirement.status === 'pending' || requirement.status === 'resubmitted' || ((requirement.kind === 'institution' || requirement.kind === 'ground') && requirement.status !== 'cleared');
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
-      <ScreenHeader title="Upload Document" onBack={app.back} />
+      <ScreenHeader title={t("Upload Document")} onBack={app.back} />
       <ScrollView contentContainerStyle={{ padding: 18 }}>
         <Card style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
           <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#f0edff', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}><Ionicons name="document-text-outline" size={18} color={PURPLE} /></View>
@@ -299,7 +303,7 @@ export function RequirementScreen({ app, params }) {
               <View>
                 <PdfView mode="full" url={`${apiBaseUrl}/api/files/${submission.stampedFileId}`} token={app.token} style={{ height: 430, borderRadius: 16 }} />
                 <View style={{ position: 'absolute', left: 10, top: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: '#dcfce7', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
-                  <Ionicons name="ribbon" size={14} color="#15803d" style={{ marginRight: 4 }} /><Text style={{ fontSize: 13, fontWeight: '700', color: '#15803d' }}>Stamped copy</Text>
+                  <Ionicons name="ribbon" size={14} color="#15803d" style={{ marginRight: 4 }} /><Text style={{ fontSize: 13, fontWeight: '700', color: '#15803d' }}>{t("Stamped copy")}</Text>
                 </View>
               </View>
             ) : isImage && source ? (
@@ -314,9 +318,9 @@ export function RequirementScreen({ app, params }) {
               </View>
             )}
             <View style={{ marginTop: 10, flexDirection: 'row', justifyContent: 'space-between' }}>
-              <View style={{ flex: 1 }}><Text style={{ fontSize: 13, color: MUTED }}>File Name</Text><Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: INK }}>{preview.name}</Text></View>
-              <View style={{ width: 60 }}><Text style={{ fontSize: 13, color: MUTED }}>File Type</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{{ 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/jpeg': 'JPG' }[preview.mimeType]}</Text></View>
-              <View style={{ width: 64 }}><Text style={{ fontSize: 13, color: MUTED }}>File Size</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{preview.size ? formatSize(preview.size) : '—'}</Text></View>
+              <View style={{ flex: 1 }}><Text style={{ fontSize: 13, color: MUTED }}>{t("File Name")}</Text><Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: INK }}>{preview.name}</Text></View>
+              <View style={{ width: 60 }}><Text style={{ fontSize: 13, color: MUTED }}>{t("File Type")}</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{{ 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/jpeg': 'JPG' }[preview.mimeType]}</Text></View>
+              <View style={{ width: 64 }}><Text style={{ fontSize: 13, color: MUTED }}>{t("File Size")}</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{preview.size ? formatSize(preview.size) : '—'}</Text></View>
             </View>
           </View>
         ) : null}
@@ -325,14 +329,14 @@ export function RequirementScreen({ app, params }) {
           <View style={{ gap: 10 }}>
             {acceptsPdf ? (
               <Pressable accessibilityRole="button" onPress={chooseFile} style={{ height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: '#d6ccf3', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <Ionicons name="document-text-outline" size={18} color={PURPLE} /><Text style={{ fontSize: 17, fontWeight: '700', color: PURPLE }}>{picked ? 'Change PDF' : 'Choose PDF'}</Text>
+              <Ionicons name="document-text-outline" size={18} color={PURPLE} /><Text style={{ fontSize: 17, fontWeight: '700', color: PURPLE }}>{picked ? t("Change PDF") : t("Choose PDF")}</Text>
             </Pressable>
             ) : null}
             <Pressable accessibilityRole="button" onPress={choosePhoto} style={{ height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: '#d6ccf3', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <Ionicons name="image-outline" size={18} color={PURPLE} /><Text style={{ fontSize: 17, fontWeight: '700', color: PURPLE }}>{picked ? 'Change Photo' : 'Choose Photo'}</Text>
+              <Ionicons name="image-outline" size={18} color={PURPLE} /><Text style={{ fontSize: 17, fontWeight: '700', color: PURPLE }}>{picked ? t("Change Photo") : t("Choose Photo")}</Text>
             </Pressable>
             <ErrorText>{uploadError}</ErrorText>
-            <SolidButton title={picked ? 'Upload Document' : 'Select a file to continue'} disabled={!picked} busy={busy} onPress={submit} />
+            <SolidButton title={picked ? t("Upload Document") : t("Select a file to continue")} disabled={!picked} busy={busy} onPress={submit} />
             <Text style={{ textAlign: 'center', fontSize: 14, color: MUTED }}>Accepted: PDF, JPG, PNG · Max {requirement.maxMb}MB. The file is sent to your reviewer.</Text>
           </View>
         ) : (
@@ -340,7 +344,7 @@ export function RequirementScreen({ app, params }) {
             {pending ? (
               <Card style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a', flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name="time" size={22} color="#d97706" />
-                <Text style={{ flex: 1, marginLeft: 10, fontSize: 15, color: '#92400e' }}>{requirement.kind === 'ground' ? 'Your clearance officer will clear this in person.' : requirement.kind === 'institution' ? 'The institution will verify this from its own records.' : `${requirement.status === 'resubmitted' ? 'Re-submitted' : 'Submitted'} ${formatDate(submission?.submittedAt)} — pending review.`}</Text>
+                <Text style={{ flex: 1, marginLeft: 10, fontSize: 15, color: '#92400e' }}>{requirement.kind === 'ground' ? t("Your clearance officer will clear this in person.") : requirement.kind === 'institution' ? t("The institution will verify this from its own records.") : `${requirement.status === 'resubmitted' ? 'Re-submitted' : 'Submitted'} ${formatDate(submission?.submittedAt)} — pending review.`}</Text>
               </Card>
             ) : null}
             {requirement.status === 'cleared' && submission?.fileId ? <View style={{ marginTop: 6 }}><ClearedActions sub={submission} token={app.token} /></View> : null}
@@ -354,36 +358,37 @@ export function RequirementScreen({ app, params }) {
 
 // ---------- Rejected ----------
 export function RejectedScreen({ app, params }) {
+  const { t } = useLanguage();
   const { data, error } = useClearance(app, params.clearanceId);
-  if (!data) return <Loading title="Document Rejected" error={error} onBack={app.back} />;
+  if (!data) return <Loading title={t("Document Rejected")} error={error} onBack={app.back} />;
   const clearance = data.clearance;
   const { requirement } = findRequirement(clearance, params.requirementId);
   const sub = requirement.submission;
   const earlier = (requirement.history || []).slice(1);
   return (
     <View style={{ flex: 1, backgroundColor: '#fff5f5' }}>
-      <ScreenHeader title="Document Rejected" onBack={app.back} tint="#fff5f5" />
+      <ScreenHeader title={t("Document Rejected")} onBack={app.back} tint="#fff5f5" />
       <ScrollView contentContainerStyle={{ padding: 18 }}>
         <View style={{ alignItems: 'center', marginTop: 8, marginBottom: 20 }}>
           <View style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: '#fecaca', alignItems: 'center', justifyContent: 'center' }}>
             <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center' }}><Ionicons name="alert" size={32} color="white" /></View>
           </View>
           <Text style={{ fontSize: 22, fontWeight: '800', color: INK, textAlign: 'center', marginTop: 14 }}>Your {requirement.name} was rejected</Text>
-          <View style={{ marginTop: 8 }}><StatusBadge status="action_required" label="REJECTED · ACTION REQUIRED" /></View>
+          <View style={{ marginTop: 8 }}><StatusBadge status="action_required" label={t("REJECTED · ACTION REQUIRED")} /></View>
         </View>
         <Card style={{ marginBottom: 10 }}>
-          <Text style={{ fontSize: 14, fontWeight: '700', color: INK }}>Reason</Text>
-          <Text style={{ fontSize: 15, color: MUTED, marginTop: 4 }}>{sub?.reason || 'Document rejected.'}</Text>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: INK }}>{t("Reason")}</Text>
+          <Text style={{ fontSize: 15, color: MUTED, marginTop: 4 }}>{sub?.reason || t("Document rejected.")}</Text>
         </Card>
         {sub?.message ? (
           <Card style={{ marginBottom: 10 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: INK }}>Officer’s Message</Text>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: INK }}>{t("Officer’s Message")}</Text>
             <Text style={{ fontSize: 15, color: MUTED, marginTop: 4, lineHeight: 18 }}>{sub.message}</Text>
           </Card>
         ) : null}
         <Text style={{ fontSize: 14, color: MUTED, marginBottom: 20 }}>{sub?.reviewer ? `${sub.reviewer} · ` : ''}{formatDate(sub?.reviewedAt)}</Text>
         {earlier.length ? <Text style={{ fontSize: 14, color: MUTED, marginBottom: 20 }}>{earlier.length} earlier submission{earlier.length > 1 ? 's' : ''} kept in your history.</Text> : null}
-        <SolidButton title="Re-upload Document" onPress={() => app.replace('requirement', { clearanceId: clearance.id, requirementId: requirement.id })} />
+        <SolidButton title={t("Re-upload Document")} onPress={() => app.replace('requirement', { clearanceId: clearance.id, requirementId: requirement.id })} />
       </ScrollView>
     </View>
   );
@@ -392,14 +397,15 @@ export function RejectedScreen({ app, params }) {
 // ---------- Cleared ----------
 // The stamped PDF copy of a cleared document: download it, or print it.
 function StampedActions({ sub, token }) {
+  const { t } = useLanguage();
   const { busy, error, run } = useBusy();
   const url = `${apiBaseUrl}/api/files/${sub.stampedFileId}`;
   return (
     <View style={{ marginBottom: 10 }}>
-      <Text style={{ fontSize: 14, color: MUTED, marginBottom: 8, textAlign: 'center' }}>Your document now carries the official stamp.</Text>
+      <Text style={{ fontSize: 14, color: MUTED, marginBottom: 8, textAlign: 'center' }}>{t("Your document now carries the official stamp.")}</Text>
       <View style={{ flexDirection: 'row', gap: 10 }}>
-        <View style={{ flex: 1 }}><SolidButton icon="download-outline" title="Download" busy={busy} onPress={() => run(() => downloadAndShare(url, stampedName(sub.fileName), token, 'application/pdf'))} /></View>
-        <View style={{ flex: 1 }}><SolidButton variant="outline" icon="print-outline" title="Print" busy={busy} onPress={() => run(() => printFile(url, stampedName(sub.fileName), token))} /></View>
+        <View style={{ flex: 1 }}><SolidButton icon="download-outline" title={t("Download")} busy={busy} onPress={() => run(() => downloadAndShare(url, stampedName(sub.fileName), token, 'application/pdf'))} /></View>
+        <View style={{ flex: 1 }}><SolidButton variant="outline" icon="print-outline" title={t("Print")} busy={busy} onPress={() => run(() => printFile(url, stampedName(sub.fileName), token))} /></View>
       </View>
       <ErrorText>{error}</ErrorText>
     </View>
@@ -408,20 +414,22 @@ function StampedActions({ sub, token }) {
 
 // Actions for a cleared document: its stamped copy when there is one (download or print), otherwise the original.
 function ClearedActions({ sub, token }) {
+  const { t } = useLanguage();
   const { busy, error, run } = useBusy();
   if (sub.stampedFileId) return <StampedActions sub={sub} token={token} />;
   return (
     <View>
-      <SolidButton icon="download-outline" title="Download" busy={busy} onPress={() => run(() => downloadAndShare(`${apiBaseUrl}/api/files/${sub.fileId}`, sub.fileName, token, sub.mimeType))} />
+      <SolidButton icon="download-outline" title={t("Download")} busy={busy} onPress={() => run(() => downloadAndShare(`${apiBaseUrl}/api/files/${sub.fileId}`, sub.fileName, token, sub.mimeType))} />
       <ErrorText>{error}</ErrorText>
     </View>
   );
 }
 
 export function ClearedScreen({ app, params }) {
+  const { t } = useLanguage();
   const { data, error } = useClearance(app, params.clearanceId);
   const { busy, error: downloadError, run } = useBusy();
-  if (!data) return <Loading title="Cleared" error={error} onBack={app.back} />;
+  if (!data) return <Loading title={t("Cleared")} error={error} onBack={app.back} />;
   const clearance = data.clearance;
   const { stage, requirement } = findRequirement(clearance, params.requirementId);
   const sub = requirement.submission;
@@ -435,28 +443,28 @@ export function ClearedScreen({ app, params }) {
           <View style={{ width: 110, height: 110, borderRadius: 55, backgroundColor: '#dcfce7', alignItems: 'center', justifyContent: 'center' }}>
             <View style={{ width: 74, height: 74, borderRadius: 37, backgroundColor: '#16a34a', alignItems: 'center', justifyContent: 'center' }}><Ionicons name="checkmark" size={44} color="white" /></View>
           </View>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: '#15803d', marginTop: 14 }}>Cleared!</Text>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: '#15803d', marginTop: 14 }}>{t("Cleared!")}</Text>
           <Text style={{ fontSize: 16, color: MUTED, marginTop: 6, textAlign: 'center' }}>Your {requirement.name} has been approved.</Text>
         </View>
         <Card style={{ marginBottom: 16 }}>
-          {sub?.fileName ? <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}><Ionicons name="document-text-outline" size={20} color={PURPLE} style={{ marginRight: 12 }} /><View style={{ flex: 1 }}><Text style={{ fontSize: 13, color: MUTED }}>Your uploaded file</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{sub.fileName}</Text></View></View> : null}
+          {sub?.fileName ? <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}><Ionicons name="document-text-outline" size={20} color={PURPLE} style={{ marginRight: 12 }} /><View style={{ flex: 1 }}><Text style={{ fontSize: 13, color: MUTED }}>{t("Your uploaded file")}</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{sub.fileName}</Text></View></View> : null}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
             <Ionicons name="person-outline" size={18} color={MUTED} style={{ marginRight: 12 }} />
-            <View><Text style={{ fontSize: 13, color: MUTED }}>Approved by</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{sub?.reviewer || stage.name}</Text></View>
+            <View><Text style={{ fontSize: 13, color: MUTED }}>{t("Approved by")}</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{sub?.reviewer || stage.name}</Text></View>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Ionicons name="calendar-outline" size={18} color={MUTED} style={{ marginRight: 12 }} />
-            <View><Text style={{ fontSize: 13, color: MUTED }}>Date & time</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{formatDate(sub?.reviewedAt)}</Text></View>
+            <View><Text style={{ fontSize: 13, color: MUTED }}>{t("Date & time")}</Text><Text style={{ fontSize: 15, fontWeight: '600', color: INK }}>{formatDate(sub?.reviewedAt)}</Text></View>
           </View>
         </Card>
-        {sub?.stampedFileId ? <View style={{ marginBottom: 12 }}><Text style={{ fontSize: 14, color: MUTED, marginBottom: 8, textAlign: 'center' }}>Your approved PDF includes the institution stamp and reviewer signature when provided.</Text><SolidButton variant="outline" icon="eye-outline" title="View Stamped Copy" onPress={() => run(() => printFile(`${apiBaseUrl}/api/files/${sub.stampedFileId}`, stampedName(sub.fileName), app.token))} /></View> : null}
-        {sub?.fileId ? <View style={{ marginBottom: 10 }}><SolidButton variant="outline" title="View Details" onPress={() => app.replace('requirement', { clearanceId: clearance.id, requirementId: requirement.id })} /></View> : null}
-        <SolidButton title={next ? 'Continue to Next Step' : 'View Clearance'} onPress={() => (clearance.status === 'completed' ? app.replace('completed', { id: clearance.id }) : app.back())} />
+        {sub?.stampedFileId ? <View style={{ marginBottom: 12 }}><Text style={{ fontSize: 14, color: MUTED, marginBottom: 8, textAlign: 'center' }}>{t("Your approved PDF includes the institution stamp and reviewer signature when provided.")}</Text><SolidButton variant="outline" icon="eye-outline" title={t("View Stamped Copy")} onPress={() => run(() => printFile(`${apiBaseUrl}/api/files/${sub.stampedFileId}`, stampedName(sub.fileName), app.token))} /></View> : null}
+        {sub?.fileId ? <View style={{ marginBottom: 10 }}><SolidButton variant="outline" title={t("View Details")} onPress={() => app.replace('requirement', { clearanceId: clearance.id, requirementId: requirement.id })} /></View> : null}
+        <SolidButton title={next ? t("Continue to Next Step") : t("View Clearance")} onPress={() => (clearance.status === 'completed' ? app.replace('completed', { id: clearance.id }) : app.back())} />
       </ScrollView>
       {sub?.fileId ? <View style={{ padding: 12, borderTopWidth: 1, borderColor: LINE, backgroundColor: 'white' }}>
         <ErrorText>{downloadError}</ErrorText>
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          <View style={{ flex: 1 }}><SolidButton icon="download-outline" title="Download" busy={busy} onPress={() => run(() => (sub.stampedFileId ? downloadAndShare(`${apiBaseUrl}/api/files/${sub.stampedFileId}`, stampedName(sub.fileName), app.token, 'application/pdf') : downloadAndShare(`${apiBaseUrl}/api/files/${sub.fileId}`, sub.fileName, app.token, sub.mimeType)))} /></View>
+          <View style={{ flex: 1 }}><SolidButton icon="download-outline" title={t("Download")} busy={busy} onPress={() => run(() => (sub.stampedFileId ? downloadAndShare(`${apiBaseUrl}/api/files/${sub.stampedFileId}`, stampedName(sub.fileName), app.token, 'application/pdf') : downloadAndShare(`${apiBaseUrl}/api/files/${sub.fileId}`, sub.fileName, app.token, sub.mimeType)))} /></View>
         </View>
       </View> : null}
     </View>
@@ -465,9 +473,10 @@ export function ClearedScreen({ app, params }) {
 
 // ---------- Completed ----------
 export function CompletedScreen({ app, params }) {
+  const { t } = useLanguage();
   const { data, error } = useClearance(app, params.id);
   const { busy, error: actionError, run } = useBusy();
-  if (!data) return <Loading title="Clearance" error={error} onBack={app.back} />;
+  if (!data) return <Loading title={t("Clearance")} error={error} onBack={app.back} />;
   const { clearance, student } = data;
   const completion = clearance.completion || {};
   const certificate = () => run(async () => {
@@ -489,11 +498,11 @@ export function CompletedScreen({ app, params }) {
       <ScrollView contentContainerStyle={{ padding: 18 }}>
         <View style={{ alignItems: 'center', marginBottom: 20 }}>
           <Text style={{ fontSize: 60 }}>🎉</Text>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: INK, marginTop: 6 }}>Clearance Completed!</Text>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: INK, marginTop: 6 }}>{t("Clearance Completed!")}</Text>
           <Text style={{ fontSize: 16, color: MUTED, marginTop: 6, textAlign: 'center' }}>You have successfully completed your {clearance.name}.</Text>
           {clearance.completedAt ? <Text style={{ fontSize: 14, color: MUTED, marginTop: 4 }}>Completed {formatDate(clearance.completedAt)} · 100%</Text> : null}
         </View>
-        <Text style={{ fontSize: 17, fontWeight: '700', color: INK, marginBottom: 10 }}>Completion Actions</Text>
+        <Text style={{ fontSize: 17, fontWeight: '700', color: INK, marginBottom: 10 }}>{t("Completion Actions")}</Text>
         <Card style={{ padding: 0 }}>
           {items.map((item, index) => (
             <Pressable key={item.key} onPress={item.onPress} style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderTopWidth: index ? 1 : 0, borderTopColor: LINE }}>
@@ -506,15 +515,15 @@ export function CompletedScreen({ app, params }) {
             </Pressable>
           ))}
         </Card>
-        {items.length === 0 ? <Text style={{ fontSize: 15, color: MUTED, marginTop: -4 }}>Your institution has not set any completion actions yet.</Text> : null}
+        {items.length === 0 ? <Text style={{ fontSize: 15, color: MUTED, marginTop: -4 }}>{t("Your institution has not set any completion actions yet.")}</Text> : null}
         {completion.custom ? (
           <Card style={{ marginTop: 14, backgroundColor: '#faf8ff', flexDirection: 'row' }}>
             <Ionicons name="information-circle" size={20} color={PURPLE} style={{ marginRight: 10, marginTop: 1 }} />
-            <View style={{ flex: 1 }}><Text style={{ fontSize: 15, fontWeight: '700', color: INK, marginBottom: 3 }}>Instructions from your institution</Text><Text style={{ fontSize: 15, lineHeight: 18, color: MUTED }}>{completion.custom}</Text></View>
+            <View style={{ flex: 1 }}><Text style={{ fontSize: 15, fontWeight: '700', color: INK, marginBottom: 3 }}>{t("Instructions from your institution")}</Text><Text style={{ fontSize: 15, lineHeight: 18, color: MUTED }}>{completion.custom}</Text></View>
           </Card>
         ) : null}
         <ErrorText>{actionError}</ErrorText>
-        <View style={{ marginTop: 18 }}><SolidButton variant="outline" title="View Requirements" onPress={() => app.replace('clearance', { id: clearance.id })} busy={busy} /></View>
+        <View style={{ marginTop: 18 }}><SolidButton variant="outline" title={t("View Requirements")} onPress={() => app.replace('clearance', { id: clearance.id })} busy={busy} /></View>
       </ScrollView>
     </View>
   );
@@ -522,6 +531,7 @@ export function CompletedScreen({ app, params }) {
 
 // ---------- Student ID card (as delivered by the institution) ----------
 function OfficialIdCard({ app, info }) {
+  const { t } = useLanguage();
   const { busy, error, run } = useBusy();
   const url = info.fileId ? `${apiBaseUrl}/api/files/${info.fileId}` : '';
   const isImage = info.mimeType?.startsWith('image/');
@@ -534,13 +544,13 @@ function OfficialIdCard({ app, info }) {
   });
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
-      <ScreenHeader title="Student ID Card" onBack={app.back} />
+      <ScreenHeader title={t("Student ID Card")} onBack={app.back} />
       <ScrollView contentContainerStyle={{ padding: 18 }}>
         {info.digital ? (
           info.fileId ? (
             <>
               <View style={{ alignItems: 'center', marginBottom: 12 }}>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: INK }}>Your student ID card is ready</Text>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: INK }}>{t("Your student ID card is ready")}</Text>
               </View>
               <Card style={{ padding: 8, alignItems: 'center', marginBottom: 16 }}>
                 {isImage ? <Image source={fileSource(info.fileId, app.token)} resizeMode="contain" style={{ width: '100%', height: 260 }} /> : (
@@ -548,15 +558,15 @@ function OfficialIdCard({ app, info }) {
                 )}
               </Card>
               <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}><SolidButton icon="download-outline" title="Download" busy={busy} onPress={() => run(() => downloadAndShare(url, fileName, app.token, info.mimeType))} /></View>
-                <View style={{ flex: 1 }}><SolidButton variant="outline" icon="print-outline" title="Print" busy={busy} onPress={print} /></View>
+                <View style={{ flex: 1 }}><SolidButton icon="download-outline" title={t("Download")} busy={busy} onPress={() => run(() => downloadAndShare(url, fileName, app.token, info.mimeType))} /></View>
+                <View style={{ flex: 1 }}><SolidButton variant="outline" icon="print-outline" title={t("Print")} busy={busy} onPress={print} /></View>
               </View>
             </>
           ) : (
             <Card style={{ alignItems: 'center', paddingVertical: 28, marginBottom: 16 }}>
               <Ionicons name="hourglass-outline" size={38} color="#d97706" />
-              <Text style={{ marginTop: 10, fontSize: 17, fontWeight: '700', color: INK }}>Your ID card is being prepared</Text>
-              <Text style={{ marginTop: 4, fontSize: 15, color: MUTED, textAlign: 'center' }}>You will be notified as soon as your institution uploads it.</Text>
+              <Text style={{ marginTop: 10, fontSize: 17, fontWeight: '700', color: INK }}>{t("Your ID card is being prepared")}</Text>
+              <Text style={{ marginTop: 4, fontSize: 15, color: MUTED, textAlign: 'center' }}>{t("You will be notified as soon as your institution uploads it.")}</Text>
             </Card>
           )
         ) : null}
@@ -564,12 +574,12 @@ function OfficialIdCard({ app, info }) {
           <Card style={{ marginTop: info.digital ? 18 : 0, marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
               <Ionicons name="business-outline" size={20} color={PURPLE} style={{ marginRight: 8 }} />
-              <Text style={{ fontSize: 17, fontWeight: '700', color: INK }}>Ready for Collection</Text>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: INK }}>{t("Ready for Collection")}</Text>
             </View>
-            {[['Location', info.location], ['Collection Date', info.date], ['Office Hours', info.hours], ['Instructions', info.instructions]].filter(([, value]) => value).map(([label, value]) => (
+            {[[t("Location"), info.location], [t("Collection Date"), info.date], [t("Office Hours"), info.hours], [t("Instructions"), info.instructions]].filter(([, value]) => value).map(([label, value]) => (
               <View key={label} style={{ marginBottom: 8 }}><Text style={{ fontSize: 13, color: MUTED }}>{label}</Text><Text style={{ fontSize: 16, color: INK }}>{value}</Text></View>
             ))}
-            {!info.location && !info.date && !info.hours && !info.instructions ? <Text style={{ fontSize: 15, color: MUTED }}>Your institution will share the collection details soon.</Text> : null}
+            {!info.location && !info.date && !info.hours && !info.instructions ? <Text style={{ fontSize: 15, color: MUTED }}>{t("Your institution will share the collection details soon.")}</Text> : null}
           </Card>
         ) : null}
         <ErrorText>{error}</ErrorText>
@@ -579,6 +589,7 @@ function OfficialIdCard({ app, info }) {
 }
 
 export function IdCardScreen({ app }) {
+  const { t } = useLanguage();
   const student = app.overview.student;
   const clearance = app.overview.clearances.find((item) => item.status === 'completed' && item.completion?.idCard);
   const passport = app.overview.clearances.flatMap((item) => item.stages).flatMap((stage) => stage.requirements).find((item) => item.id === 'passport-photo' && item.submission?.fileId && item.submission.mimeType.startsWith('image/'));
@@ -593,12 +604,12 @@ export function IdCardScreen({ app }) {
   if (info && info.digital !== undefined) return <OfficialIdCard app={app} info={info} />;
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
-      <ScreenHeader title="Student ID Card" onBack={app.back} />
+      <ScreenHeader title={t("Student ID Card")} onBack={app.back} />
       <ScrollView contentContainerStyle={{ padding: 18 }}>
         <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 18 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: '#faf8ff', borderBottomWidth: 1, borderBottomColor: LINE }}>
             <InstitutionMark size={38} />
-            <View style={{ marginLeft: 10 }}><Text style={{ fontSize: 16, fontWeight: '700', color: INK }}>{student.institutionName}</Text><Text style={{ fontSize: 12, color: MUTED, letterSpacing: 0.5 }}>STUDENT IDENTITY CARD</Text></View>
+            <View style={{ marginLeft: 10 }}><Text style={{ fontSize: 16, fontWeight: '700', color: INK }}>{student.institutionName}</Text><Text style={{ fontSize: 12, color: MUTED, letterSpacing: 0.5 }}>{t("STUDENT IDENTITY CARD")}</Text></View>
           </View>
           <View style={{ flexDirection: 'row', padding: 14, alignItems: 'flex-start' }}>
             {passport ? <Image source={fileSource(passport.submission.fileId, app.token)} style={{ width: 96, height: 112, borderRadius: 10, backgroundColor: '#f3f0fd' }} /> : <View style={{ width: 96, height: 112, borderRadius: 10, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' }}><Ionicons name="person" size={40} color={PURPLE} /></View>}
@@ -614,15 +625,15 @@ export function IdCardScreen({ app }) {
         {info ? (
           <Card style={{ marginBottom: 18 }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: INK, marginBottom: 8 }}>{info.status}</Text>
-            {[['Location', info.location], ['Collection Date', info.date], ['Office Hours', info.hours], ['Instructions', info.instructions]].map(([label, value]) => (
+            {[[t("Location"), info.location], [t("Collection Date"), info.date], [t("Office Hours"), info.hours], [t("Instructions"), info.instructions]].map(([label, value]) => (
               <View key={label} style={{ marginBottom: 6 }}><Text style={{ fontSize: 13, color: MUTED }}>{label}</Text><Text style={{ fontSize: 15, color: INK }}>{value}</Text></View>
             ))}
           </Card>
         ) : null}
         <ErrorText>{error}</ErrorText>
-        <SolidButton icon="download-outline" title="Download ID Card" onPress={download} busy={busy} />
+        <SolidButton icon="download-outline" title={t("Download ID Card")} onPress={download} busy={busy} />
         <View style={{ height: 10 }} />
-        <SolidButton variant="outline" icon="share-social-outline" title="Share" onPress={share} />
+        <SolidButton variant="outline" icon="share-social-outline" title={t("Share")} onPress={share} />
       </ScrollView>
     </View>
   );

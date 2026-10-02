@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useEffect, useState } from 'react';
 import TextLink from '../components/TextLink';
 import { useAsyncPress } from '../components/useAsyncPress';
@@ -80,6 +81,7 @@ function PlanCard({ on, open, onPress, title, badge, subtitle, price, priceNote,
 }
 
 function FooterButton({ icon, title, onPress, busy: busyProp, disabled }) {
+  const { t } = useLanguage();
   const [pending, press] = useAsyncPress(onPress);
   const busy = busyProp || pending;
   return (
@@ -91,7 +93,7 @@ function FooterButton({ icon, title, onPress, busy: busyProp, disabled }) {
       style={{ height: 56, borderRadius: 16, backgroundColor: disabled ? '#c9b8f0' : '#5a17c9', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.85 : 1 }}
     >
       {busy ? <ActivityIndicator color="#ffffff" /> : <Ionicons name={icon} size={20} color="#ffffff" style={{ marginRight: 8 }} />}
-      <Text style={{ fontSize: 16, fontWeight: '700', color: '#ffffff' }}>{busy ? 'Please wait...' : title}</Text>
+      <Text style={{ fontSize: 16, fontWeight: '700', color: '#ffffff' }}>{busy ? t("Please wait...") : title}</Text>
     </Pressable>
   );
 }
@@ -100,6 +102,7 @@ function FooterButton({ icon, title, onPress, busy: busyProp, disabled }) {
 // Fills its parent: the plan cards scroll, and the action button is attached directly beneath them at the bottom.
 // `header` is shown above the cards and scrolls with them.
 export default function PaymentPanel({ token, onDone, signedIn = false, renewing = false, header = null }) {
+  const { t } = useLanguage();
   const [config, setConfig] = useState(null);
   const [selected, setSelected] = useState(''); // '' | 'trial' | plan id | 'enterprise'
   const [checkout, setCheckout] = useState(null);
@@ -111,12 +114,12 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
   useEffect(() => {
     apiRequest('/api/institution-payment/config', undefined, token)
       .then((result) => setConfig(result))
-      .catch((cause) => setError(cause.message));
+      .catch((cause) => setError(t(cause.message)));
   }, [token]);
 
   const guard = async (task) => {
     setBusy(true); setError('');
-    try { await task(); } catch (cause) { setError(cause.message); } finally { setBusy(false); }
+    try { await task(); } catch (cause) { setError(t(cause.message)); } finally { setBusy(false); }
   };
   const plan = config?.plans?.find((item) => item.id === selected);
   const trialOffered = Boolean(config?.trial?.available) && !renewing;
@@ -124,7 +127,7 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
   const verify = (ref) => guard(async () => {
     const result = await apiRequest('/api/institution-payment/verify', { reference: ref }, token);
     if (result.status === 'success') { setSuccess({ user: result.user, trial: false, planName: plan?.name, amount: plan && config ? money(plan.price, config.currency) : null }); return; }
-    setError(result.status === 'failed' || result.status === 'abandoned' ? 'The payment was not completed. You have not been charged. Please try again.' : 'We have not received the payment yet. If you have just paid, wait a moment and check again.');
+    setError(result.status === 'failed' || result.status === 'abandoned' ? t("The payment was not completed. You have not been charged. Please try again.") : t("We have not received the payment yet. If you have just paid, wait a moment and check again."));
   });
 
   const pay = () => guard(async () => {
@@ -150,7 +153,7 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
   // The action button follows whatever is selected.
   const starterTrial = trialOffered && selected === (config?.trial?.planId || 'starter');
   let footer = null;
-  if (!success && config && !selected) footer = <FooterButton disabled icon="card-outline" title="Choose a plan to continue" />;
+  if (!success && config && !selected) footer = <FooterButton disabled icon="card-outline" title={t("Choose a plan to continue")} />;
   if (!success && selected) {
     if (starterTrial) {
       footer = (
@@ -159,7 +162,7 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
           <View style={{ marginTop: 10, alignItems: 'center', padding: 6 }}><TextLink disabled={busy} onPress={pay} color={PURPLE} style={{ fontSize: 13 }}>Skip the trial and pay {money(plan.price, config.currency)} now</TextLink></View>
         </View>
       );
-    } else if (selected === 'enterprise') footer = <FooterButton icon="mail-outline" title="Contact sales" onPress={contactSales} />;
+    } else if (selected === 'enterprise') footer = <FooterButton icon="mail-outline" title={t("Contact sales")} onPress={contactSales} />;
     else if (plan) footer = <FooterButton icon="card-outline" title={`Make payment · ${money(plan.price, config.currency)}`} busy={busy && !checkout} onPress={pay} />;
   }
 
@@ -167,11 +170,11 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
     const days = success.trial ? config?.trial?.days : config?.subscriptionDays;
     const until = days ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
     const rows = [
-      ['Institution', success.user?.institutionName],
-      ['Plan', success.trial ? `Starter · ${config?.trial?.days}-day free trial` : success.planName],
+      [t("Institution"), success.user?.institutionName],
+      [t("Plan"), success.trial ? `Starter · ${config?.trial?.days}-day free trial` : success.planName],
       [success.trial ? 'Cost today' : 'Amount paid', success.trial ? 'Free' : success.amount],
       [success.trial ? 'Trial ends' : 'Valid until', until],
-      ...(success.trial && config?.plans?.[0] ? [['After the trial', `${money(config.plans[0].price, config.currency)} per month, only if you subscribe`]] : []),
+      ...(success.trial && config?.plans?.[0] ? [[t("After the trial"), `${money(config.plans[0].price, config.currency)} per month, only if you subscribe`]] : []),
     ].filter(([, value]) => value);
     const dots = [['#f59e0b', 24, 34], ['#8b5cf6', 60, 12], ['#22c55e', 110, 20], ['#ec4899', 10, 88], ['#3b82f6', 132, 84], ['#f59e0b', 118, 150], ['#8b5cf6', 6, 148]];
     return (
@@ -187,9 +190,9 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
               </View>
             </View>
           </View>
-          <Text style={{ fontSize: 26, fontWeight: '800', color: INK, textAlign: 'center' }}>{success.trial ? 'Your free trial has started!' : 'Payment successful!'}</Text>
+          <Text style={{ fontSize: 26, fontWeight: '800', color: INK, textAlign: 'center' }}>{success.trial ? t("Your free trial has started!") : t("Payment successful!")}</Text>
           <Text style={{ marginTop: 10, fontSize: 14, lineHeight: 21, color: MUTED, textAlign: 'center', maxWidth: 320 }}>
-            {success.trial ? `You have Starter free for ${config?.trial?.days} days: up to ${Number(config?.trial?.students).toLocaleString('en-US')} students, unlimited staff, every feature. We will email you a day before it ends. Nothing is charged automatically.` : 'Thank you. Your institution is now active.'} {signedIn ? 'You can start using ClearanceLink now.' : 'Sign in with your work email and password to get started.'}
+            {success.trial ? `You have Starter free for ${config?.trial?.days} days: up to ${Number(config?.trial?.students).toLocaleString('en-US')} students, unlimited staff, every feature. We will email you a day before it ends. Nothing is charged automatically.` : t("Thank you. Your institution is now active.")} {signedIn ? t("You can start using ClearanceLink now.") : t("Sign in with your work email and password to get started.")}
           </Text>
           {rows.length ? (
             <View style={{ alignSelf: 'stretch', marginTop: 26, borderRadius: 16, borderWidth: 1, borderColor: '#e6e3f7', backgroundColor: '#ffffff', shadowColor: '#3b1a8a', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}>
@@ -203,7 +206,7 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
           ) : null}
         </ScrollView>
         <View style={{ paddingHorizontal: 22, paddingTop: 10, paddingBottom: 16, backgroundColor: 'white' }}>
-          <FooterButton icon="arrow-forward" title={signedIn ? 'Continue' : 'Continue to Login'} onPress={() => onDone(success.user)} />
+          <FooterButton icon="arrow-forward" title={signedIn ? t("Continue") : t("Continue to Login")} onPress={() => onDone(success.user)} />
         </View>
       </View>
     );
@@ -235,7 +238,7 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
               <>
                 <Details heading={`Try Starter free for ${config.trial.days} days. No card needed.`} lines={[`Up to ${item.students.toLocaleString('en-US')} active students and unlimited staff`, ...INCLUDED]} />
                 <Details
-                  heading="How billing works"
+                  heading={t("How billing works")}
                   lines={[
                     `Your ${config.trial.days}-day trial starts today.`,
                     'We email you one day before it ends.',
@@ -254,10 +257,10 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
       {config ? (
         <PlanCard
           dashed on={selected === 'enterprise'} open={selected === 'enterprise'} onPress={() => toggle('enterprise')}
-          title="Enterprise" subtitle={`${topStudents}+ active students`}
-          price={config.enterprise?.from ? `From ${money(config.enterprise.from, config.currency)}` : 'Custom'} priceNote={config.enterprise?.from ? priceNote(config, config.enterprise.fromUsd, config.enterprise.approx, 'contact us') : 'contact us'}
+          title={t("Enterprise")} subtitle={`${topStudents}+ active students`}
+          price={config.enterprise?.from ? `From ${money(config.enterprise.from, config.currency)}` : 'Custom'} priceNote={config.enterprise?.from ? priceNote(config, config.enterprise.fromUsd, config.enterprise.approx, 'contact us') : t("contact us")}
         >
-          <Details heading="For large institutions and groups. Everything above, plus a plan sized and priced for you:" lines={['Volume beyond the standard plans', 'Onboarding help and priority support', 'Pricing agreed with our team']} />
+          <Details heading={t("For large institutions and groups. Everything above, plus a plan sized and priced for you:")} lines={['Volume beyond the standard plans', 'Onboarding help and priority support', 'Pricing agreed with our team']} />
         </PlanCard>
       ) : null}
 
@@ -265,7 +268,7 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
         <ErrorBanner message={error} />
         {reference ? (
           <Pressable accessibilityRole="button" onPress={() => verify(reference)} style={{ marginTop: 12, alignItems: 'center', padding: 6 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: PURPLE }}>I’ve already paid — check payment status</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: PURPLE }}>{t("I’ve already paid — check payment status")}</Text>
           </Pressable>
         ) : null}
         <View style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
@@ -281,14 +284,14 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
 
       {/* Always visible at the bottom: greyed out until a plan is chosen. */}
       <View style={{ paddingHorizontal: 22, paddingTop: 10, paddingBottom: 16, borderTopWidth: 1, borderTopColor: '#efecfa', backgroundColor: 'white' }}>
-        {footer || <FooterButton disabled icon="card-outline" title="Choose a plan to continue" />}
+        {footer || <FooterButton disabled icon="card-outline" title={t("Choose a plan to continue")} />}
       </View>
 
       <Modal visible={Boolean(checkout)} animationType="slide" onRequestClose={closeCheckout}>
         <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
           <View style={{ height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
             <Pressable accessibilityRole="button" accessibilityLabel="Close payment" onPress={closeCheckout} style={{ width: 40, height: 44, justifyContent: 'center' }}><Ionicons name="close" size={26} color={INK} /></Pressable>
-            <Text style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: INK, marginRight: 40 }}>Secure payment</Text>
+            <Text style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: INK, marginRight: 40 }}>{t("Secure payment")}</Text>
           </View>
           {checkout ? (
             <WebView

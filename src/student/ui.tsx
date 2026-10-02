@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import BackArrow from '../components/BackArrow';
 import { useRef, useState } from 'react';
 import { useAsyncPress } from '../components/useAsyncPress';
@@ -25,10 +26,11 @@ export const STATUS = {
 };
 
 export function StatusBadge({ status, label }) {
+  const { t } = useLanguage();
   const style = STATUS[status] || STATUS.not_started;
   return (
     <View style={{ alignSelf: 'flex-start', backgroundColor: style.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
-      <Text style={{ fontSize: 12, fontFamily: 'Inter_700Bold', fontWeight: '700', color: style.color }}>{label || style.label}</Text>
+      <Text style={{ fontSize: 12, fontFamily: 'Inter_700Bold', fontWeight: '700', color: style.color }}>{t(label || style.label)}</Text>
     </View>
   );
 }
@@ -48,9 +50,10 @@ export function Card({ children, style, onPress }) {
 }
 
 export function ScreenHeader({ title, onBack, right, tint = 'white' }) {
+  const { t } = useLanguage();
   return (
     <View style={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, backgroundColor: tint }}>
-      <BackArrow onPress={onBack} label="Go back" size={30} color={INK} style={{ width: 44, height: 48, justifyContent: 'center' }} />
+      <BackArrow onPress={onBack} label={t("Go back")} size={30} color={INK} style={{ width: 44, height: 48, justifyContent: 'center' }} />
       <Text numberOfLines={1} style={{ flex: 1, textAlign: 'center', fontSize: 20, color: INK, fontFamily: 'Inter_800ExtraBold', fontWeight: '800' }}>{title}</Text>
       <View style={{ width: 44, alignItems: 'flex-end' }}>{right}</View>
     </View>
@@ -87,12 +90,13 @@ const TABS = [
 ];
 
 export function BottomTabs({ active, onSelect, unread, tabs = TABS }) {
+  const { t } = useLanguage();
   return (
     <View style={{ height: 70, flexDirection: 'row', borderTopWidth: 1, borderColor: LINE, backgroundColor: 'white' }}>
       {tabs.map((tab) => {
         const on = active === tab.key;
         return (
-          <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.label} onPress={() => onSelect(tab.key)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={t(`nav${tab.key.charAt(0).toUpperCase()}${tab.key.slice(1)}`)} onPress={() => onSelect(tab.key)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <View>
               <Ionicons name={tab.icon} size={27} color={on ? PURPLE : '#7779A6'} />
               {tab.key === 'notifications' && unread > 0 ? (
@@ -101,7 +105,7 @@ export function BottomTabs({ active, onSelect, unread, tabs = TABS }) {
                 </View>
               ) : null}
             </View>
-            <Text style={{ marginTop: 3, fontSize: 11, color: on ? PURPLE : '#7779A6', fontFamily: on ? 'Inter_700Bold' : 'Inter_500Medium' }}>{tab.label}</Text>
+            <Text style={{ marginTop: 3, fontSize: 11, color: on ? PURPLE : '#7779A6', fontFamily: on ? 'Inter_700Bold' : 'Inter_500Medium' }}>{t(`nav${tab.key.charAt(0).toUpperCase()}${tab.key.slice(1)}`)}</Text>
           </Pressable>
         );
       })}

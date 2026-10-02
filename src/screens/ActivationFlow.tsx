@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import BackArrow from '../components/BackArrow';
 import TextLink from '../components/TextLink';
 import { useEffect, useRef, useState } from 'react';
@@ -19,11 +20,12 @@ const RULES = [
 ];
 
 export function Shell({ onBack, children }) {
+  const { t } = useLanguage();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       {onBack ? (
-        <BackArrow onPress={onBack} label="Go back" size={26} color={INK} style={{ marginTop: 16, marginLeft: 16, width: 44, height: 44, justifyContent: 'center' }} />
+        <BackArrow onPress={onBack} label={t("Go back")} size={26} color={INK} style={{ marginTop: 16, marginLeft: 16, width: 44, height: 44, justifyContent: 'center' }} />
       ) : null}
       <KeyboardScreen contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: onBack ? 44 : 0, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">{children}</KeyboardScreen>
     </SafeAreaView>
@@ -56,6 +58,7 @@ const CONFIG = {
 };
 
 export default function ActivationFlow({ role = 'student', onBack, onDone }) {
+  const { t } = useLanguage();
   const cfg = CONFIG[role];
   const [result, setResult] = useState(null);
   const [step, setStep] = useState('access');
@@ -77,11 +80,11 @@ export default function ActivationFlow({ role = 'student', onBack, onDone }) {
 
   const guard = async (task) => {
     setBusy(true); setError('');
-    try { await task(); } catch (cause) { setError(cause.message); } finally { setBusy(false); }
+    try { await task(); } catch (cause) { setError(t(cause.message)); } finally { setBusy(false); }
   };
   const id = clearanceId.trim().toUpperCase();
   const requestCode = () => guard(async () => {
-    if (!id) throw new Error('Enter your Clearance ID.');
+    if (!id) throw new Error(t("Enter your Clearance ID."));
     const result = await apiRequest(`/api/${role}/access`, { [cfg.key]: id });
     setContact({ masked: result.maskedContact });
     setCode('');
@@ -89,14 +92,14 @@ export default function ActivationFlow({ role = 'student', onBack, onDone }) {
     setStep('otp');
   });
   const verify = () => guard(async () => {
-    if (code.length !== 6) throw new Error('Enter the 6-digit code.');
+    if (code.length !== 6) throw new Error(t("Enter the 6-digit code."));
     const result = await apiRequest(`/api/${role}/verify`, { [cfg.key]: id, code });
     setActivationToken(result.activationToken);
     setStep('password');
   });
   const activate = () => guard(async () => {
-    if (RULES.some(([, test]) => !test(password))) throw new Error('Your password does not meet all the requirements.');
-    if (password !== confirm) throw new Error('Passwords do not match.');
+    if (RULES.some(([, test]) => !test(password))) throw new Error(t("Your password does not meet all the requirements."));
+    if (password !== confirm) throw new Error(t("Passwords do not match."));
     setResult(await apiRequest(`/api/${role}/activate`, { [cfg.key]: id, activationToken, password }));
     setStep('done');
   });
@@ -118,7 +121,7 @@ export default function ActivationFlow({ role = 'student', onBack, onDone }) {
             <TextInput accessibilityLabel={cfg.label} value={clearanceId} onChangeText={setClearanceId} placeholder={cfg.placeholder} placeholderTextColor="#a4a1bc" autoCapitalize="characters" autoCorrect={false} onSubmitEditing={requestCode} style={{ flex: 1, padding: 0, fontSize: 16, color: INK }} />
           </View>
           <ErrorText>{error}</ErrorText>
-          <PrimaryButton title={busy ? 'Checking...' : 'Continue'} onPress={busy ? undefined : requestCode} />
+          <PrimaryButton title={busy ? t("Checking...") : t("Continue")} onPress={busy ? undefined : requestCode} />
           <Text style={{ marginTop: 30, textAlign: 'center', fontSize: 13, color: INK }}>{cfg.helpTitle}</Text>
           <Text style={{ marginTop: 4, textAlign: 'center', fontSize: 13, color: MUTED }}>{cfg.help}</Text>
         </View>
@@ -128,18 +131,18 @@ export default function ActivationFlow({ role = 'student', onBack, onDone }) {
   if (step === 'otp') {
     return (
       <Shell onBack={back}>
-        <Title>Verify Your Identity</Title>
+        <Title>{t("Verify Your Identity")}</Title>
         <Subtitle>{`We’ve sent a 6-digit code to\n${contact.masked}`}</Subtitle>
         <CodeBoxes value={code} onChange={setCode} />
         <Text style={{ marginTop: 18, textAlign: 'center', fontSize: 13, color: MUTED }}>
-          {seconds > 0 ? <>Code expires in <Text style={{ color: PURPLE, fontWeight: '700' }}>{clock(seconds)}</Text></> : 'This code has expired. Request a new one.'}
+          {seconds > 0 ? <>Code expires in <Text style={{ color: PURPLE, fontWeight: '700' }}>{clock(seconds)}</Text></> : t("This code has expired. Request a new one.")}
         </Text>
         <View style={{ height: 22 }} />
         <ErrorText>{error}</ErrorText>
-        <PrimaryButton title={busy ? 'Verifying...' : 'Verify'} onPress={busy ? undefined : verify} />
+        <PrimaryButton title={busy ? t("Verifying...") : t("Verify")} onPress={busy ? undefined : verify} />
         <View style={{ marginTop: 24, flexDirection: 'row', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 13, color: MUTED }}>Didn’t receive the code? </Text>
-          <TextLink disabled={seconds > 0 || busy} onPress={requestCode} color={seconds > 0 ? '#b9a5e8' : PURPLE} style={{ fontSize: 13 }}>Resend</TextLink>
+          <Text style={{ fontSize: 13, color: MUTED }}>{t("Didn’t receive the code?")} </Text>
+          <TextLink disabled={seconds > 0 || busy} onPress={requestCode} color={seconds > 0 ? '#b9a5e8' : PURPLE} style={{ fontSize: 13 }}>{t("Resend")}</TextLink>
         </View>
       </Shell>
     );
@@ -147,13 +150,13 @@ export default function ActivationFlow({ role = 'student', onBack, onDone }) {
   if (step === 'password') {
     return (
       <Shell onBack={back}>
-        <Title>Create Password</Title>
-        <Subtitle>Set a password to secure your account.</Subtitle>
-        <Field error={Boolean(error) && password.length > 0 && RULES.some(([, test]) => !test(password))} label="Create password" value={password} onChangeText={setPassword} placeholder="Create password" secureTextEntry icon="lock-closed-outline" />
-        <Field error={Boolean(error) && confirm !== password} label="Confirm password" value={confirm} onChangeText={setConfirm} placeholder="Confirm password" secureTextEntry icon="lock-closed-outline" />
+        <Title>{t("Create Password")}</Title>
+        <Subtitle>{t("Set a password to secure your account.")}</Subtitle>
+        <Field error={Boolean(error) && password.length > 0 && RULES.some(([, test]) => !test(password))} label={t("Create password")} value={password} onChangeText={setPassword} placeholder={t("Create password")} secureTextEntry icon="lock-closed-outline" />
+        <Field error={Boolean(error) && confirm !== password} label={t("Confirm password")} value={confirm} onChangeText={setConfirm} placeholder={t("Confirm password")} secureTextEntry icon="lock-closed-outline" />
         <View style={{ marginTop: 6, marginBottom: 22 }}><PasswordChecklist password={password} confirm={confirm} /></View>
         <ErrorText>{error}</ErrorText>
-        <PrimaryButton title={busy ? 'Creating...' : 'Create Account'} onPress={busy ? undefined : activate} />
+        <PrimaryButton title={busy ? t("Creating...") : t("Create Account")} onPress={busy ? undefined : activate} />
       </Shell>
     );
   }
@@ -167,7 +170,7 @@ export default function ActivationFlow({ role = 'student', onBack, onDone }) {
             </View>
           </View>
         </View>
-        <Title>Account Activated!</Title>
+        <Title>{t("Account Activated!")}</Title>
         <Text style={{ textAlign: 'center', fontSize: 15, lineHeight: 23, color: MUTED, marginTop: 10, marginBottom: 34 }}>{`Welcome to ClearanceLink.\nYou can now login with your\npassword.`}</Text>
         <PrimaryButton title={cfg.doneButton} onPress={() => onDone(result)} />
       </View>

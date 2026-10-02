@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useEffect, useRef, useState } from 'react';
 import { useAsyncPress } from './useAsyncPress';
 import { notifyFieldFocus } from './KeyboardScreen';
@@ -53,6 +54,7 @@ export const passwordIsStrong = (value) => PASSWORD_RULES.every(([, test]) => te
 // The checklist of password rules. Pass `confirm` (the confirmation field's text) to add a last line that turns green
 // once the two passwords match, at which point every line is ticked.
 export function PasswordChecklist({ password, confirm }: { password: string; confirm?: string }) {
+  const { t } = useLanguage();
   const rows: [string, boolean][] = PASSWORD_RULES.map(([label, test]) => [label as string, (test as (value: string) => boolean)(password)]);
   if (confirm !== undefined) rows.push(['Both passwords match', confirm.length > 0 && confirm === password]);
   return (
@@ -60,7 +62,7 @@ export function PasswordChecklist({ password, confirm }: { password: string; con
       {rows.map(([label, ok]) => (
         <View key={label} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <Ionicons name={ok ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={ok ? '#16a34a' : '#c4c1d8'} style={{ marginRight: 10, marginTop: 1 }} />
-          <Text style={{ flex: 1, fontSize: 15, lineHeight: 21, color: ok ? '#171548' : '#6e6b91' }}>{label}</Text>
+          <Text style={{ flex: 1, fontSize: 15, lineHeight: 21, color: ok ? '#171548' : '#6e6b91' }}>{t(label)}</Text>
         </View>
       ))}
     </View>

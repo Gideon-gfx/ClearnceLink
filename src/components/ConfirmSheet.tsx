@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -38,6 +39,7 @@ function ActionButton({ label, outline, color, onPress }) {
 }
 
 export function ConfirmSheet({ visible, options, onClose }) {
+  const { t } = useLanguage();
   const offset = useRef(new Animated.Value(320)).current;
   const fade = useRef(new Animated.Value(0)).current;
   const danger = options.tone === 'danger';
@@ -78,7 +80,7 @@ export function ConfirmSheet({ visible, options, onClose }) {
               <ActionButton key={action.label} label={action.label} outline={action.variant === 'outline'} color={action.variant === 'danger' || danger ? '#dc2626' : PURPLE} onPress={() => dismiss(action.onPress)} />
             ))}
             <Pressable accessibilityRole="button" onPress={() => dismiss()} style={{ height: 48, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: MUTED }}>{options.cancelLabel || 'Cancel'}</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: MUTED }}>{options.cancelLabel || t("Cancel")}</Text>
             </Pressable>
           </View>
         </Animated.View>

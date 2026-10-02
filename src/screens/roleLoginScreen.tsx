@@ -1,3 +1,5 @@
+import LanguagePicker from '../i18n/LanguagePicker';
+import { useLanguage } from '../i18n/LanguageContext';
 import BackArrow from '../components/BackArrow';
 import TextLink from '../components/TextLink';
 import { useEffect, useRef, useState } from 'react';
@@ -11,7 +13,7 @@ import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
 import { Animated, Easing, Image, Keyboard, LayoutAnimation, Platform, Pressable, ScrollView, StatusBar, Text, useWindowDimensions, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Field, PrimaryButton } from '../components/Shared';
 import { apiRequest } from '../api';
 import { clearRememberedSession, saveRememberedSession } from '../components/rememberedSession';
@@ -23,6 +25,8 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const backOffset = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+  const { t } = useLanguage();
   // While the keyboard is up, the tall purple header is swapped for a slim bar so the fields have room above the keyboard.
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   useEffect(() => {
@@ -33,7 +37,7 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
   const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
   const { width, height } = useWindowDimensions();
   const role = mode === 'institution' ? 'Institution' : mode === 'staff' ? 'Staff' : 'Student';
-  const portal = mode === 'institution' ? 'Institution Portal' : `${role} Portal`;
+  const portal = mode === 'institution' ? t('portalInstitution') : mode === 'staff' ? t('portalStaff') : t('portalStudent');
   const headerScale = Math.min(Math.max(width / 260, 1), 1.62);
   const logoScale = headerScale;
   const curveScale = headerScale;
@@ -42,8 +46,8 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
   const waveHeight = 54 * curveScale;
   const goBackAnimated = () => Animated.timing(backOffset, { toValue: width, duration: 260, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }).start(({ finished }) => { if (finished) onBack(); });
   const submit = async () => {
-    if (!email.trim() || !password) { setError('Enter your email and password.'); return; }
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setError('Enter a valid email address.'); return; }
+    if (!email.trim() || !password) { setError(t('errEnterBoth')); return; }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setError(t('errEmail')); return; }
     setError('');
     setBusy(true);
     try {
@@ -51,16 +55,17 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
       if (remember) await saveRememberedSession(result); else await clearRememberedSession();
       onLogin(result);
     }
-    catch (cause) { setError(cause.message); }
+    catch (cause) { setError(t(cause.message)); }
     finally { setBusy(false); }
   };
   return (
-    <Animated.View style={{ flex: 1, backgroundColor: 'white', transform: [{ translateX: backOffset }] }}><SafeAreaView style={{ flex: 1, backgroundColor: 'white' }} edges={Platform.OS === 'android' ? ['left', 'right', 'bottom'] : undefined}>
+    <Animated.View style={{ flex: 1, backgroundColor: 'white', transform: [{ translateX: backOffset }] }}><SafeAreaView style={{ flex: 1, backgroundColor: 'white' }} edges={['left', 'right', 'bottom']}>
       <StatusBar barStyle="light-content" backgroundColor="#5a17c9" />
       {keyboardOpen ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', height: 78, paddingHorizontal: 14, backgroundColor: '#5a17c9' }}>
-          <BackArrow onPress={goBackAnimated} label="Go back to welcome" size={26} color="white" style={{ width: 44, height: 48, justifyContent: 'center' }} />
-          <Text style={{ flex: 1, textAlign: 'center', marginRight: 44, fontSize: 18, color: 'white', fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{portal}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', height: 78 + (Platform.OS === 'ios' ? insets.top : 0), paddingTop: Platform.OS === 'ios' ? insets.top : 0, paddingHorizontal: 14, backgroundColor: '#5a17c9' }}>
+          <BackArrow onPress={goBackAnimated} label={t("Go back to welcome")} size={26} color="white" style={{ width: 44, height: 48, justifyContent: 'center' }} />
+          <Text style={{ flex: 1, textAlign: 'center', marginLeft: 44, marginRight: 8, fontSize: 18, color: 'white', fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{portal}</Text>
+          <LanguagePicker tone="light" />
         </View>
       ) : (
       <View style={{ height: panelTop + waveHeight + 12, overflow: 'hidden', backgroundColor: '#5a17c9' }}>
@@ -96,7 +101,8 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
           <Path d={`M 0 0 C 0 ${18 * curveScale} ${width * 0.12} ${20 * curveScale} ${width * 0.28} ${15 * curveScale} C ${width * 0.52} ${8 * curveScale} ${width * 0.74} ${4 * curveScale} ${width * 0.88} ${19 * curveScale} C ${width * 0.96} ${27 * curveScale} ${width * 0.995} ${39 * curveScale} ${width} ${waveHeight} L ${width} ${waveHeight + 1} L 0 ${waveHeight + 1} Z`} fill="white" />
         </Svg>
         <View style={{ position: 'absolute', top: panelTop - leftRise + waveHeight, left: 0, right: 0, bottom: 0, backgroundColor: 'white' }} />
-        <BackArrow onPress={goBackAnimated} label="Go back to welcome" size={22} color="white" style={{ position: 'absolute', left: 18, top: 46, width: 40, height: 42, justifyContent: 'center' }} />
+        <BackArrow onPress={goBackAnimated} label={t("Go back to welcome")} size={22} color="white" style={{ position: 'absolute', left: 18, top: Math.max(46, insets.top + 22), width: 40, height: 42, justifyContent: 'center' }} />
+        <View style={{ position: 'absolute', right: 18, top: Math.max(46, insets.top + 22) + 3 }}><LanguagePicker tone="light" /></View>
       </View>
       )}
       {keyboardOpen ? null : <Image
@@ -107,22 +113,22 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
         style={{ position: 'absolute', left: 0, bottom: 0, width, height: 155 * headerScale, opacity: 0.78 }}
       />}
       <KeyboardScreen style={{ marginTop: keyboardOpen ? 14 : -36 * headerScale, zIndex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 25, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
-        <Text style={{ marginTop: 2, textAlign: 'center', fontSize: 22, color: '#171548', fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{role} Login</Text>
-        <Text style={{ marginTop: 7, marginBottom: 22, textAlign: 'center', fontSize: 12, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_400Regular' : undefined }}>{mode === 'institution' ? 'Access your institution dashboard.' : `Access your ${role.toLowerCase()} account.`}</Text>
-        <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label={mode === 'institution' ? 'Work Email' : 'Email'} value={email} onChangeText={setEmail} placeholder="name@institution.edu" keyboardType="email-address" icon="mail-outline" /></View>
-        <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label="Password" value={password} onChangeText={setPassword} placeholder="Enter your password" secureTextEntry icon="lock-closed-outline" /></View>
+        <Text style={{ marginTop: 2, textAlign: 'center', fontSize: 22, color: '#171548', fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{mode === 'institution' ? t('loginInstitution') : mode === 'staff' ? t('loginStaff') : t('loginStudent')}</Text>
+        <Text style={{ marginTop: 7, marginBottom: 22, textAlign: 'center', fontSize: 12, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_400Regular' : undefined }}>{mode === 'institution' ? t('loginSubInstitution') : mode === 'staff' ? t('loginSubStaff') : t('loginSubStudent')}</Text>
+        <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label={mode === 'institution' ? t('workEmail') : t('email')} value={email} onChangeText={setEmail} placeholder="name@institution.edu" keyboardType="email-address" icon="mail-outline" /></View>
+        <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label={t('password')} value={password} onChangeText={setPassword} placeholder={t('enterPassword')} secureTextEntry icon="lock-closed-outline" /></View>
         <View className="mb-[32px] mt-0.5 flex-row items-center justify-between">
           <Pressable onPress={() => setRemember(!remember)} className="flex-row items-center">
             <Ionicons name={remember ? 'checkbox' : 'square-outline'} size={16} color="#6819d4" style={{ marginRight: 6 }} />
-            <Text style={{ fontSize: 11, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_500Medium' : undefined }}>Remember me</Text>
+            <Text style={{ fontSize: 11, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_500Medium' : undefined }}>{t('rememberMe')}</Text>
           </Pressable>
-          <TextLink onPress={onForgot} color="#6318d1" style={{ fontSize: 13, fontWeight: undefined, fontFamily: fontsLoaded ? 'Inter_600SemiBold' : undefined }}>Forgot password?</TextLink>
+          <TextLink onPress={onForgot} color="#6318d1" style={{ fontSize: 13, fontWeight: undefined, fontFamily: fontsLoaded ? 'Inter_600SemiBold' : undefined }}>{t('forgotPassword')}</TextLink>
         </View>
         <ErrorBanner message={error} />
-        <PrimaryButton title={busy ? 'Logging in...' : 'Login'} onPress={busy ? undefined : submit} />
+        <PrimaryButton title={busy ? t('loggingIn') : t('loginButton')} onPress={busy ? undefined : submit} />
         <View style={{ marginTop: 25, alignItems: 'center', gap: 4 }}>
-          <Text style={{ fontSize: 14, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_400Regular' : undefined }}>Don’t have an account?</Text>
-          <TextLink onPress={onRegister} color="#6115d0" style={{ fontSize: 14, fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{mode === 'institution' ? 'Register your institution' : `Create ${role.toLowerCase()} account`}</TextLink>
+          <Text style={{ fontSize: 14, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_400Regular' : undefined }}>{t('noAccount')}</Text>
+          <TextLink onPress={onRegister} color="#6115d0" style={{ fontSize: 14, fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{mode === 'institution' ? t('registerInstitution') : mode === 'staff' ? t('createStaffAccount') : t('createStudentAccount')}</TextLink>
         </View>
       </KeyboardScreen>
     </SafeAreaView></Animated.View>

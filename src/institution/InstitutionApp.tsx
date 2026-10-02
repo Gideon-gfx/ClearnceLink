@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, StatusBar, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +30,7 @@ import ActivityScreen from './activityScreen';
 
 const mainTabs = ['home', 'students', 'staff', 'oversight', 'more'];
 export default function InstitutionApp({ session, onSignOut, onSessionChange = (user) => {} }) {
+  const { t } = useLanguage();
   const api = useMemo(() => institutionApi(session.token), [session.token]);
   const [stack, setStack] = useState([{ screen: 'home', params: {} }]);
   const [logoVersion, setLogoVersion] = useState(0);
@@ -70,5 +72,5 @@ export default function InstitutionApp({ session, onSignOut, onSessionChange = (
   const animated = <ScreenTransition key={`${current.screen}-${stack.length}`}>{body}</ScreenTransition>;
   if (!mainTabs.includes(current.screen)) return animated;
   const ownHeader = ['students', 'staff', 'oversight', 'more'].includes(current.screen); // these screens show their own title bar
-  return <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}><StatusBar barStyle="dark-content" backgroundColor="white" />{ownHeader ? null : <BrandHeader name={session.user.institutionName} subtitle="Institution Administrator" logoUrl={logoUrl} token={session.token} unread={unread} onNotify={() => go('activity')} />}<View style={{ flex: 1 }}>{animated}</View><BottomNav current={current.screen} onSelect={tab} /></SafeAreaView>;
+  return <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}><StatusBar barStyle="dark-content" backgroundColor="white" />{ownHeader ? null : <BrandHeader name={session.user.institutionName} subtitle={t('administrator')} logoUrl={logoUrl} token={session.token} unread={unread} onNotify={() => go('activity')} />}<View style={{ flex: 1 }}>{animated}</View><BottomNav current={current.screen} onSelect={tab} /></SafeAreaView>;
 }

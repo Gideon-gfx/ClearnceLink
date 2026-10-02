@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import BackArrow from '../components/BackArrow';
 import { useEffect, useRef, useState } from 'react';
 import KeyboardScreen from '../components/KeyboardScreen';
@@ -23,6 +24,7 @@ const stateOptions = {
 };
 
 export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
+  const { t } = useLanguage();
   const [openingLink, setOpeningLink] = useState(false);
   const openLink = (url) => { setOpeningLink(true); Linking.openURL(url).catch(() => {}).finally(() => setTimeout(() => setOpeningLink(false), 600)); };
   const { width } = useWindowDimensions();
@@ -108,7 +110,7 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
       setCode('');
       setResendIn(300);
       setVerifying(true);
-    } catch (cause) { setRegistrationError(cause.message); }
+    } catch (cause) { setRegistrationError(t(cause.message)); }
     finally { setRegistrationBusy(false); }
   };
   // Shows a short spinner on Continue before the next slide appears.
@@ -118,11 +120,11 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
   };
   const startVerification = () => {
     if (adminHasErrors) { setShowErrors(true); setRegistrationError(FILL_MESSAGE); return; }
-    if (!logoFile) { keepErrorOnStepChange.current = true; setShowErrors1(true); setRegistrationError('Upload your institution logo.'); setStep(1); return; }
+    if (!logoFile) { keepErrorOnStepChange.current = true; setShowErrors1(true); setRegistrationError(t("Upload your institution logo.")); setStep(1); return; }
     sendCode();
   };
   const submitRegistration = async () => {
-    if (code.length !== 6) { setRegistrationError('Enter the 6-digit code.'); return; }
+    if (code.length !== 6) { setRegistrationError(t("Enter the 6-digit code.")); return; }
     setRegistrationError('');
     setRegistrationBusy(true);
     try {
@@ -134,7 +136,7 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
       setAccount(created);
       setVerifying(false);
       setStep(4);
-    } catch (cause) { setRegistrationError(cause.message); }
+    } catch (cause) { setRegistrationError(t(cause.message)); }
     finally { setRegistrationBusy(false); }
   };
 
@@ -148,7 +150,7 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setRegistrationError('Logo must be under 2MB.'); return; }
+      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setRegistrationError(t("Logo must be under 2MB.")); return; }
       const base64 = await readFileAsBase64(asset.uri);
       setInstitutionLogo(asset.uri);
       setLogoFile({ name: asset.fileName || 'institution-logo.png', mimeType: asset.mimeType || 'image/png', base64 });
@@ -183,7 +185,7 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View className="flex-1">
         <View className="flex-row items-center gap-3 px-[22px] pb-3 pt-16">
-          <BackArrow onPress={goBackAnimated} label={step === 1 ? 'Back to previous screen' : 'Previous registration step'} size={36} color="#171548" className="h-12 w-12 items-center justify-center" />
+          <BackArrow onPress={goBackAnimated} label={step === 1 ? t("Back to previous screen") : t("Previous registration step")} size={36} color="#171548" className="h-12 w-12 items-center justify-center" />
           <View className="h-[10px] flex-1 overflow-hidden rounded-full bg-[#eceafa]">
             <View className={`h-full rounded-full bg-brand ${progressWidth}`} />
           </View>
@@ -194,8 +196,8 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
             <PaymentPanel
               token={account?.token} onDone={(user) => onPaid(user)}
               header={<>
-                <Text className="text-center text-[26px] font-extrabold leading-8 tracking-tight text-ink">Choose Your Plan</Text>
-                <Text style={{ fontSize: 15, lineHeight: 22, marginBottom: 24 }} className="mt-1 text-center text-muted">Start a free trial or subscribe to activate your institution.</Text>
+                <Text className="text-center text-[26px] font-extrabold leading-8 tracking-tight text-ink">{t("Choose Your Plan")}</Text>
+                <Text style={{ fontSize: 15, lineHeight: 22, marginBottom: 24 }} className="mt-1 text-center text-muted">{t("Start a free trial or subscribe to activate your institution.")}</Text>
               </>}
             />
           </ScreenTransition>
@@ -204,23 +206,23 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
         <KeyboardScreen contentContainerClassName="grow px-6 pb-[42px] pt-1" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {step === 1 ? (
             <>
-              <Text className="text-center text-[26px] font-extrabold leading-8 tracking-tight text-ink">Create Institution Account</Text>
-              <Text style={{ marginBottom: 64 }} className="mt-1 text-center text-sm font-semibold leading-5 text-muted">Provide your institution’s basic information.</Text>
+              <Text className="text-center text-[26px] font-extrabold leading-8 tracking-tight text-ink">{t("Create Institution Account")}</Text>
+              <Text style={{ marginBottom: 64 }} className="mt-1 text-center text-sm font-semibold leading-5 text-muted">{t("Provide your institution’s basic information.")}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={institutionLogo ? 'Change institution logo' : 'Upload institution logo'} onPress={pickInstitutionLogo} className="mb-[18px] h-[156px] items-center justify-center rounded-[13px] border border-[#cfcafa] bg-[#fbfaff]" style={showErrors1 && basicInvalid.logo ? { borderColor: '#ef4444', borderWidth: 2, backgroundColor: '#fffafa' } : undefined}>
                 {institutionLogo ? (
                   <Image source={{ uri: institutionLogo }} resizeMode="contain" className="mb-1.5 h-[58px] w-[58px] rounded-[10px]" />
                 ) : (
                   <View className="mb-1.5 h-[42px] w-[42px] items-center justify-center rounded-full bg-[#eeeaff]"><Ionicons name="camera-outline" size={23} color="#5a17c9" /></View>
                 )}
-                <Text className="text-base font-semibold text-muted">{institutionLogo ? 'Change Institution Logo' : 'Upload Institution Logo'}</Text>
-                <Text className="mt-1 text-xs text-[#9390aa]">PNG, JPG · Max 2MB</Text>
+                <Text className="text-base font-semibold text-muted">{institutionLogo ? t("Change Institution Logo") : t("Upload Institution Logo")}</Text>
+                <Text className="mt-1 text-xs text-[#9390aa]">{t("PNG, JPG · Max 2MB")}</Text>
               </Pressable>
-              <Field error={showErrors1 && basicInvalid.name} label="Institution Name" value={institutionName} onChangeText={setInstitutionName} placeholder="e.g. University of Excellence" />
+              <Field error={showErrors1 && basicInvalid.name} label={t("Institution Name")} value={institutionName} onChangeText={setInstitutionName} placeholder="e.g. University of Excellence" />
               <SelectField
                 error={showErrors1 && !institutionType}
-                label="Institution Type"
+                label={t("Institution Type")}
                 value={institutionType}
-                placeholder="Select institution type"
+                placeholder={t("Select institution type")}
                 options={institutionTypes}
                 onSelect={(value) => {
                   setInstitutionType(value);
@@ -229,37 +231,37 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
                 icon="school-outline"
               />
               {institutionType === 'Other' ? (
-                <Field error={showErrors1 && !otherInstitutionType.trim()} label="Specify Institution Type" value={otherInstitutionType} onChangeText={setOtherInstitutionType} placeholder="Enter institution type" icon="create-outline" />
+                <Field error={showErrors1 && !otherInstitutionType.trim()} label={t("Specify Institution Type")} value={otherInstitutionType} onChangeText={setOtherInstitutionType} placeholder={t("Enter institution type")} icon="create-outline" />
               ) : null}
-              <SelectField error={showErrors1 && basicInvalid.country} label="Country" value={country} placeholder="Select country" options={countries} onSelect={(value) => { setCountry(value); setState(''); setOtherState(''); }} icon="globe-outline" searchable />
+              <SelectField error={showErrors1 && basicInvalid.country} label={t("Country")} value={country} placeholder={t("Select country")} options={countries} onSelect={(value) => { setCountry(value); setState(''); setOtherState(''); }} icon="globe-outline" searchable />
               {country ? (
                 <>
-                  <Field error={showErrors1 && basicInvalid.address1} label="Address Line 1" value={addressLine1} onChangeText={setAddressLine1} placeholder="Street address, P.O. box" icon="location-outline" />
-                  <Field label="Address Line 2 (Optional)" value={addressLine2} onChangeText={setAddressLine2} placeholder="Apartment, suite, building" icon="business-outline" />
+                  <Field error={showErrors1 && basicInvalid.address1} label={t("Address Line 1")} value={addressLine1} onChangeText={setAddressLine1} placeholder={t("Street address, P.O. box")} icon="location-outline" />
+                  <Field label={t("Address Line 2 (Optional)")} value={addressLine2} onChangeText={setAddressLine2} placeholder={t("Apartment, suite, building")} icon="business-outline" />
                   {stateOptions[country] ? (
-                    <SelectField error={showErrors1 && !state} label="State / Region" value={state} placeholder="Select state or region" options={stateOptions[country]} onSelect={(value) => { setState(value); setOtherState(''); }} icon="map-outline" />
+                    <SelectField error={showErrors1 && !state} label={t("State / Region")} value={state} placeholder={t("Select state or region")} options={stateOptions[country]} onSelect={(value) => { setState(value); setOtherState(''); }} icon="map-outline" />
                   ) : (
-                    <Field error={showErrors1 && !state.trim()} label="State / Region" value={state} onChangeText={setState} placeholder="Enter state or region" icon="map-outline" />
+                    <Field error={showErrors1 && !state.trim()} label={t("State / Region")} value={state} onChangeText={setState} placeholder={t("Enter state or region")} icon="map-outline" />
                   )}
-                  {state === 'Other' ? <Field error={showErrors1 && !otherState.trim()} label="Specify State / Region" value={otherState} onChangeText={setOtherState} placeholder="Enter state or region" icon="create-outline" /> : null}
-                  <Field error={showErrors1 && basicInvalid.city} label="City" value={city} onChangeText={setCity} placeholder="Enter city" icon="business-outline" />
-                  <Field error={showErrors1 && basicInvalid.postal} label="Postal Code" value={postalCode} onChangeText={setPostalCode} placeholder="Enter postal code" keyboardType="number-pad" icon="mail-open-outline" />
+                  {state === 'Other' ? <Field error={showErrors1 && !otherState.trim()} label={t("Specify State / Region")} value={otherState} onChangeText={setOtherState} placeholder={t("Enter state or region")} icon="create-outline" /> : null}
+                  <Field error={showErrors1 && basicInvalid.city} label={t("City")} value={city} onChangeText={setCity} placeholder={t("Enter city")} icon="business-outline" />
+                  <Field error={showErrors1 && basicInvalid.postal} label={t("Postal Code")} value={postalCode} onChangeText={setPostalCode} placeholder={t("Enter postal code")} keyboardType="number-pad" icon="mail-open-outline" />
                 </>
               ) : null}
             </>
           ) : null}
           {step === 2 ? (
             <>
-              <Text className="text-center text-[26px] font-extrabold leading-8 tracking-tight text-ink">Institution Details</Text>
-              <Text style={{ marginBottom: 48 }} className="mt-1 text-center text-xs leading-[18px] text-muted">Provide your institution’s contact information.</Text>
-              <Field label="Official Email" value={officialEmail} onChangeText={setOfficialEmail} placeholder="institution@email.edu" keyboardType="email-address" icon="mail-outline" />
-              <PhoneField label="Official Phone Number" value={officialPhone} onChangeText={setOfficialPhone} />
-              <Field label="Institution Website (Optional)" value={website} onChangeText={setWebsite} placeholder="https://your-website.edu" keyboardType="url" icon="globe-outline" />
+              <Text className="text-center text-[26px] font-extrabold leading-8 tracking-tight text-ink">{t("Institution Details")}</Text>
+              <Text style={{ marginBottom: 48 }} className="mt-1 text-center text-xs leading-[18px] text-muted">{t("Provide your institution’s contact information.")}</Text>
+              <Field label={t("Official Email")} value={officialEmail} onChangeText={setOfficialEmail} placeholder="institution@email.edu" keyboardType="email-address" icon="mail-outline" />
+              <PhoneField label={t("Official Phone Number")} value={officialPhone} onChangeText={setOfficialPhone} />
+              <Field label={t("Institution Website (Optional)")} value={website} onChangeText={setWebsite} placeholder="https://your-website.edu" keyboardType="url" icon="globe-outline" />
             </>
           ) : null}
           {step === 3 && verifying ? (
             <>
-              <Text className="text-center text-[26px] font-extrabold leading-8 tracking-tight text-ink">Verify Your Email</Text>
+              <Text className="text-center text-[26px] font-extrabold leading-8 tracking-tight text-ink">{t("Verify Your Email")}</Text>
               <Text style={{ fontSize: 15, lineHeight: 22, marginBottom: 32 }} className="mt-1 text-center text-muted">{'Enter the 6-digit code we sent to\n' + maskedEmail}</Text>
               <Pressable onPress={() => codeInput.current?.focus()} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 {Array.from({ length: 6 }, (_, index) => {
@@ -273,23 +275,23 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
                 <TextInput ref={codeInput} accessibilityLabel="6-digit code" value={code} onChangeText={(text) => { setRegistrationError(''); setCode(text.replace(/\D/g, '').slice(0, 6)); }} keyboardType="number-pad" autoFocus maxLength={6} style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%' }} />
               </Pressable>
               <Text style={{ marginTop: 18, textAlign: 'center', fontSize: 13, color: '#6e6b91' }}>
-                {resendIn > 0 ? 'Code expires in ' + String(Math.floor(resendIn / 60)).padStart(2, '0') + ':' + String(resendIn % 60).padStart(2, '0') : 'This code has expired. Request a new one.'}
+                {resendIn > 0 ? 'Code expires in ' + String(Math.floor(resendIn / 60)).padStart(2, '0') + ':' + String(resendIn % 60).padStart(2, '0') : t("This code has expired. Request a new one.")}
               </Text>
               <Pressable disabled={resendIn > 0 || registrationBusy} onPress={sendCode} style={{ marginTop: 6, alignSelf: 'center', padding: 6 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: resendIn > 0 ? '#b9a5e8' : '#5a17c9' }}>Resend code</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: resendIn > 0 ? '#b9a5e8' : '#5a17c9' }}>{t("Resend code")}</Text>
               </Pressable>
             </>
           ) : null}
           {step === 3 && !verifying ? (
             <>
-              <Text className="text-center text-[26px] font-extrabold leading-8 tracking-tight text-ink">Primary Administrator Details</Text>
-              <Text style={{ fontSize: 15, lineHeight: 22, marginBottom: 28 }} className="mt-1 text-center text-muted">Create the main administrator account for your institution.</Text>
-              <Field label="Full Name" value={adminName} onChangeText={setAdminName} placeholder="e.g. Dr. Adebayo Johnson" icon="person-outline" error={showErrors && adminInvalid.name} />
-              <Field label="Job Title" value={jobTitle} onChangeText={setJobTitle} placeholder="e.g. Institution Administrator" icon="briefcase-outline" error={showErrors && adminInvalid.job} />
-              <Field label="Work Email" value={adminEmail} onChangeText={setAdminEmail} placeholder="admin@yourinstitution.edu" keyboardType="email-address" icon="mail-outline" error={showErrors && adminInvalid.email} />
-              <PhoneField label="Phone Number" value={adminPhone} onChangeText={setAdminPhone} error={showErrors && adminInvalid.phone} />
-              <Field label="Password" value={password} onChangeText={setPassword} placeholder="Create a strong password" secureTextEntry icon="lock-closed-outline" error={showErrors && adminInvalid.password} />
-              <Field label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Re-enter your password" secureTextEntry icon="lock-closed-outline" error={showErrors && adminInvalid.confirm} />
+              <Text className="text-center text-[26px] font-extrabold leading-8 tracking-tight text-ink">{t("Primary Administrator Details")}</Text>
+              <Text style={{ fontSize: 15, lineHeight: 22, marginBottom: 28 }} className="mt-1 text-center text-muted">{t("Create the main administrator account for your institution.")}</Text>
+              <Field label={t("Full Name")} value={adminName} onChangeText={setAdminName} placeholder="e.g. Dr. Adebayo Johnson" icon="person-outline" error={showErrors && adminInvalid.name} />
+              <Field label={t("Job Title")} value={jobTitle} onChangeText={setJobTitle} placeholder="e.g. Institution Administrator" icon="briefcase-outline" error={showErrors && adminInvalid.job} />
+              <Field label={t("Work Email")} value={adminEmail} onChangeText={setAdminEmail} placeholder="admin@yourinstitution.edu" keyboardType="email-address" icon="mail-outline" error={showErrors && adminInvalid.email} />
+              <PhoneField label={t("Phone Number")} value={adminPhone} onChangeText={setAdminPhone} error={showErrors && adminInvalid.phone} />
+              <Field label={t("Password")} value={password} onChangeText={setPassword} placeholder={t("Create a strong password")} secureTextEntry icon="lock-closed-outline" error={showErrors && adminInvalid.password} />
+              <Field label={t("Confirm Password")} value={confirmPassword} onChangeText={setConfirmPassword} placeholder={t("Re-enter your password")} secureTextEntry icon="lock-closed-outline" error={showErrors && adminInvalid.confirm} />
               {password || confirmPassword ? <PasswordChecklist password={password} confirm={confirmPassword} /> : null}
             </>
           ) : null}
@@ -297,14 +299,14 @@ export default function InstitutionRegistrationScreen({ onExit, onPaid }) {
             <View className="mt-auto pt-3">
               <ErrorBanner message={registrationError} />
               <PrimaryButton
-                title={step === 3 ? (verifying ? (registrationBusy ? 'Verifying...' : 'Verify & Continue') : (registrationBusy ? 'Sending code...' : 'Create Account')) : 'Continue'}
+                title={step === 3 ? (verifying ? (registrationBusy ? t("Verifying...") : t("Verify & Continue")) : (registrationBusy ? t("Sending code...") : t("Create Account"))) : t("Continue")}
                 loading={registrationBusy}
                 onPress={() => (step === 1 && basicHasErrors ? (setShowErrors1(true), setRegistrationError(FILL_MESSAGE)) : step < 3 ? nextSlide() : registrationBusy ? undefined : verifying ? submitRegistration() : startVerification())}
               />
               {step === 3 && !verifying ? (
                 <Text className="mt-3 text-center text-[10px] leading-4 text-muted">
                   By continuing, you agree to our{'\n'}
-                  <Text className="font-bold text-ink" onPress={() => openLink('https://clearancelink.app/terms-of-use')}>Terms of Service</Text> and <Text className="font-bold text-ink" onPress={() => openLink('https://clearancelink.app/privacy-policy')}>Privacy Policy.</Text>{openingLink ? <ActivityIndicator size="small" color="#5a17c9" style={{ marginLeft: 6 }} /> : null}
+                  <Text className="font-bold text-ink" onPress={() => openLink('https://clearancelink.app/terms-of-use')}>{t("Terms of Service")}</Text> and <Text className="font-bold text-ink" onPress={() => openLink('https://clearancelink.app/privacy-policy')}>{t("Privacy Policy.")}</Text>{openingLink ? <ActivityIndicator size="small" color="#5a17c9" style={{ marginLeft: 6 }} /> : null}
                 </Text>
               ) : null}
             </View>

@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScreenTransition } from '../components/Shared';
 import ErrorBanner from '../components/ErrorBanner';
@@ -18,6 +19,7 @@ const SCREENS = { student: StudentDetailsScreen, documents: DocumentsScreen, vie
 const TAB_SCREENS = { home: HomeScreen, students: StudentsScreen, clearances: ClearancesScreen, notifications: NotificationsScreen, profile: ProfileScreen };
 
 export default function StaffApp({ session, onSignOut }) {
+  const { t } = useLanguage();
   const token = session.token;
   const [overview, setOverview] = useState(null);
   const [error, setError] = useState('');
@@ -28,7 +30,7 @@ export default function StaffApp({ session, onSignOut }) {
 
   const reload = useCallback(async () => {
     try { setOverview(await apiRequest('/api/staff/overview', undefined, token)); setError(''); }
-    catch (cause) { setError(cause.message); }
+    catch (cause) { setError(t(cause.message)); }
   }, [token]);
   useEffect(() => { reload(); }, [version, reload]);
 
@@ -58,10 +60,10 @@ export default function StaffApp({ session, onSignOut }) {
         {error ? (
           <>
             <View style={{ width: '100%' }}><ErrorBanner message={error} /></View>
-            <View style={{ width: 200 }}><SolidButton title="Try Again" onPress={reload} /></View>
-            <View style={{ width: 200, marginTop: 10 }}><SolidButton variant="outline" title="Sign Out" onPress={onSignOut} /></View>
+            <View style={{ width: 200 }}><SolidButton title={t("Try Again")} onPress={reload} /></View>
+            <View style={{ width: 200, marginTop: 10 }}><SolidButton variant="outline" title={t("Sign Out")} onPress={onSignOut} /></View>
           </>
-        ) : <><ActivityIndicator color={PURPLE} /><Text style={{ marginTop: 10, color: MUTED }}>Loading your dashboard...</Text></>}
+        ) : <><ActivityIndicator color={PURPLE} /><Text style={{ marginTop: 10, color: MUTED }}>{t("Loading your dashboard...")}</Text></>}
       </SafeAreaView>
     );
   }

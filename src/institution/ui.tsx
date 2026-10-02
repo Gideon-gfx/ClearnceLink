@@ -1,3 +1,5 @@
+import LanguagePicker from '../i18n/LanguagePicker';
+import { useLanguage } from '../i18n/LanguageContext';
 import BackArrow from '../components/BackArrow';
 import { useEffect, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -38,6 +40,7 @@ export function BrandHeader({ name, subtitle, onNotify, logoUrl, token, unread =
       {showLogo ? <Image source={{ uri: logoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" accessibilityLabel="Institution logo" /> : <Ionicons name="school" size={30} color="white" />}
     </View>
     <View style={{ flex: 1, marginLeft: 12 }}><Text numberOfLines={2} style={{ fontSize: 18, lineHeight: 22, color: C.ink, fontFamily: 'Inter_800ExtraBold', fontWeight: '800' }}>{name}</Text><Text style={{ marginTop: 2, fontSize: 12, color: C.muted, fontFamily: 'Inter_500Medium' }}>{subtitle}</Text></View>
+    <View style={{ marginRight: 4 }}><LanguagePicker /></View>
     <Pressable accessibilityRole="button" accessibilityLabel="Notifications" onPress={onNotify} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="notifications-outline" size={25} color={C.ink} />{unread > 0 ? <View style={{ position: 'absolute', top: 4, right: 3, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: C.red, borderWidth: 1.5, borderColor: 'white' }}><Text style={{ color: 'white', fontSize: 10, fontFamily: 'Inter_700Bold' }}>{unread > 99 ? '99+' : unread}</Text></View> : null}</Pressable>
   </View>;
 }
@@ -52,7 +55,8 @@ export function ScreenTitle({ title, onBack }) {
 }
 
 export function BottomNav({ current, onSelect }) {
-  const items = [['home', 'Home', 'speedometer-outline'], ['students', 'Students', 'people-outline'], ['staff', 'Staff', 'people-circle-outline'], ['oversight', 'Oversight', 'shield-checkmark-outline'], ['more', 'More', 'menu-outline']];
+  const { t } = useLanguage();
+  const items = [['home', t('navHome'), 'speedometer-outline'], ['students', t('navStudents'), 'people-outline'], ['staff', t('navStaff'), 'people-circle-outline'], ['oversight', t('navOversight'), 'shield-checkmark-outline'], ['more', t('navMore'), 'menu-outline']];
   return <View style={{ height: 70, flexDirection: 'row', borderTopWidth: 1, borderColor: C.line, backgroundColor: 'white' }}>
     {items.map(([id, label, icon]) => <Pressable key={id} accessibilityRole="button" onPress={() => onSelect(id)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
       <Ionicons name={current === id ? icon.replace('-outline', '') : icon} size={25} color={current === id ? C.purple : '#7779A6'} />
@@ -103,6 +107,6 @@ export function Secondary({ title, onPress, icon, busy = false }) {
 
 export function Input({ label, value, onChangeText, placeholder, keyboardType, multiline, secureTextEntry, error = false }) { return <View style={{ marginBottom: 16 }}><Text style={{ marginBottom: 8, fontSize: 14, color: C.ink, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#9995B5" keyboardType={keyboardType || 'default'} secureTextEntry={secureTextEntry} multiline={multiline} textAlignVertical={multiline ? 'top' : 'center'} style={{ minHeight: multiline ? 104 : 56, paddingHorizontal: 14, paddingVertical: multiline ? 13 : 0, borderWidth: 2, borderColor: error ? '#EF4444' : '#D2CAF1', borderRadius: 12, backgroundColor: error ? '#FFFAFA' : 'white', color: C.ink, fontSize: 16, fontFamily: 'Inter_500Medium' }} /></View>; }
 export function Search({ value, onChangeText, placeholder }) { return <View style={{ height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 12, borderWidth: 2, borderColor: '#D2CAF1', borderRadius: 14, backgroundColor: 'white' }}><Ionicons name="search" size={22} color={C.purple} /><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#9995B5" style={{ flex: 1, marginLeft: 10, color: C.ink, fontSize: 15, fontFamily: 'Inter_500Medium' }} />{value ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => onChangeText('')} hitSlop={10}><Ionicons name="close-circle" size={20} color="#B2A9DE" /></Pressable> : null}</View>; }
-export function Segments({ items, value, onChange }) { return <View style={{ flexDirection: 'row', padding: 4, marginBottom: 14, borderRadius: 13, backgroundColor: C.pale }}>{items.map((item) => <Pressable key={item} onPress={() => onChange(item)} style={{ flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: value === item ? C.purple : 'transparent' }}><Text style={{ fontSize: 13, color: value === item ? 'white' : C.muted, fontFamily: value === item ? 'Inter_700Bold' : 'Inter_600SemiBold' }}>{item}</Text></Pressable>)}</View>; }
+export function Segments({ items, value, onChange }) { const { t } = useLanguage(); return <View style={{ flexDirection: 'row', padding: 4, marginBottom: 14, borderRadius: 13, backgroundColor: C.pale }}>{items.map((item) => <Pressable key={item} onPress={() => onChange(item)} style={{ flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: value === item ? C.purple : 'transparent' }}><Text style={{ fontSize: 13, color: value === item ? 'white' : C.muted, fontFamily: value === item ? 'Inter_700Bold' : 'Inter_600SemiBold' }}>{t(item)}</Text></Pressable>)}</View>; }
 export function Message({ text, error = false }) { if (error) return <ErrorBanner message={text} />; return text ? <Text style={{ marginVertical: 8, color: error ? C.red : C.green, fontSize: 14 }}>{text}</Text> : null; }
 export function Empty({ title, detail, icon = 'folder-open-outline' }) { return <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 }}><Ionicons name={icon} size={46} color="#B2A9DE" /><Text style={{ marginTop: 12, fontSize: 18, color: C.ink, fontFamily: 'Inter_700Bold' }}>{title}</Text><Text style={{ marginTop: 6, textAlign: 'center', fontSize: 14, lineHeight: 21, color: C.muted }}>{detail}</Text></View>; }

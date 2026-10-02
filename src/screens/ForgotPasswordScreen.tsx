@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import TextLink from '../components/TextLink';
 import { useEffect, useRef, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -11,6 +12,7 @@ const RESEND_AFTER = 30; // seconds before another code can be requested (matche
 
 // Password reset in three steps: 1) enter your email, 2) enter the 6-digit code we email you, 3) choose a new password.
 export default function ForgotPasswordScreen({ mode, initialEmail = '', onBack, onComplete }) {
+  const { t } = useLanguage();
   const [step, setStep] = useState('email');
   const [email, setEmail] = useState(initialEmail);
   const [masked, setMasked] = useState('');
@@ -34,13 +36,13 @@ export default function ForgotPasswordScreen({ mode, initialEmail = '', onBack, 
 
   const guard = async (task) => {
     setBusy(true); setError('');
-    try { await task(); } catch (cause) { setError(cause.message); } finally { setBusy(false); }
+    try { await task(); } catch (cause) { setError(t(cause.message)); } finally { setBusy(false); }
   };
   const address = email.trim();
   const roleLabel = mode === 'institution' ? 'institution' : mode;
 
   const sendCode = () => guard(async () => {
-    if (!/^\S+@\S+\.\S+$/.test(address)) throw new Error('Enter a valid email address.');
+    if (!/^\S+@\S+\.\S+$/.test(address)) throw new Error(t("Enter a valid email address."));
     const result = await apiRequest('/api/auth/password/forgot', { role: mode, email: address });
     setMasked(result.maskedContact || address);
     setCode('');
@@ -49,14 +51,14 @@ export default function ForgotPasswordScreen({ mode, initialEmail = '', onBack, 
     setStep('code');
   });
   const verifyCode = () => guard(async () => {
-    if (code.length !== 6) throw new Error('Enter the 6-digit code.');
+    if (code.length !== 6) throw new Error(t("Enter the 6-digit code."));
     const result = await apiRequest('/api/auth/password/verify', { role: mode, email: address, code });
     setResetToken(result.resetToken);
     setStep('password');
   });
   const resetPassword = () => guard(async () => {
-    if (!passwordIsStrong(password)) throw new Error('Your password does not meet all the requirements.');
-    if (password !== confirm) throw new Error('Passwords do not match.');
+    if (!passwordIsStrong(password)) throw new Error(t("Your password does not meet all the requirements."));
+    if (password !== confirm) throw new Error(t("Passwords do not match."));
     await apiRequest('/api/auth/password/reset', { role: mode, email: address, resetToken, password });
     setStep('done');
   });
@@ -76,14 +78,14 @@ export default function ForgotPasswordScreen({ mode, initialEmail = '', onBack, 
               <Ionicons name="lock-closed" size={40} color={PURPLE} />
             </View>
           </View>
-          <Title>Forgot Password?</Title>
+          <Title>{t("Forgot Password?")}</Title>
           <Subtitle>{`Enter the email linked to your ${roleLabel} account and we’ll send you a 6-digit code to reset your password.`}</Subtitle>
-          <Field login error={Boolean(error)} label="Email" value={email} onChangeText={setEmail} placeholder="name@institution.edu" keyboardType="email-address" icon="mail-outline" />
+          <Field login error={Boolean(error)} label={t("Email")} value={email} onChangeText={setEmail} placeholder="name@institution.edu" keyboardType="email-address" icon="mail-outline" />
           <View style={{ height: 8 }} />
           <ErrorText>{error}</ErrorText>
-          <PrimaryButton title={busy ? 'Sending...' : 'Send Code'} onPress={busy ? undefined : sendCode} />
+          <PrimaryButton title={busy ? t("Sending...") : t("Send Code")} onPress={busy ? undefined : sendCode} />
           <Pressable accessibilityRole="button" onPress={() => leave(onBack)} style={{ marginTop: 22, alignItems: 'center', padding: 8 }}>
-            <Text style={{ fontSize: 14, color: MUTED }}>Remembered it? <Text style={{ color: PURPLE, fontWeight: '700' }}>Back to login</Text></Text>
+            <Text style={{ fontSize: 14, color: MUTED }}>Remembered it? <Text style={{ color: PURPLE, fontWeight: '700' }}>{t("Back to login")}</Text></Text>
           </Pressable>
         </View>
       );
@@ -91,20 +93,20 @@ export default function ForgotPasswordScreen({ mode, initialEmail = '', onBack, 
     if (step === 'code') {
       return (
         <>
-          <Title>Check Your Email</Title>
+          <Title>{t("Check Your Email")}</Title>
           <Subtitle>{`We’ve sent a 6-digit code to\n${masked}`}</Subtitle>
           <CodeBoxes value={code} onChange={setCode} />
           <Text style={{ marginTop: 18, textAlign: 'center', fontSize: 13, color: MUTED }}>
-            {expiresIn > 0 ? <>Code expires in <Text style={{ color: PURPLE, fontWeight: '700' }}>{clock(expiresIn)}</Text></> : 'This code has expired. Request a new one below.'}
+            {expiresIn > 0 ? <>Code expires in <Text style={{ color: PURPLE, fontWeight: '700' }}>{clock(expiresIn)}</Text></> : t("This code has expired. Request a new one below.")}
           </Text>
           <View style={{ height: 22 }} />
           <ErrorText>{error}</ErrorText>
-          <PrimaryButton title={busy ? 'Verifying...' : 'Verify Code'} onPress={busy ? undefined : verifyCode} />
+          <PrimaryButton title={busy ? t("Verifying...") : t("Verify Code")} onPress={busy ? undefined : verifyCode} />
           <View style={{ marginTop: 24, flexDirection: 'row', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 13, color: MUTED }}>Didn’t receive the code? </Text>
-            <TextLink disabled={resendIn > 0 || busy} onPress={sendCode} color={resendIn > 0 ? '#b9a5e8' : PURPLE} style={{ fontSize: 13 }}>{resendIn > 0 ? `Resend in 0:${String(resendIn).padStart(2, '0')}` : 'Resend'}</TextLink>
+            <Text style={{ fontSize: 13, color: MUTED }}>{t("Didn’t receive the code?")} </Text>
+            <TextLink disabled={resendIn > 0 || busy} onPress={sendCode} color={resendIn > 0 ? '#b9a5e8' : PURPLE} style={{ fontSize: 13 }}>{resendIn > 0 ? `Resend in 0:${String(resendIn).padStart(2, '0')}` : t("Resend")}</TextLink>
           </View>
-          <Text style={{ marginTop: 14, textAlign: 'center', fontSize: 12, color: MUTED }}>Check your spam folder if it doesn’t arrive within a minute.</Text>
+          <Text style={{ marginTop: 14, textAlign: 'center', fontSize: 12, color: MUTED }}>{t("Check your spam folder if it doesn’t arrive within a minute.")}</Text>
         </>
       );
     }
@@ -116,13 +118,13 @@ export default function ForgotPasswordScreen({ mode, initialEmail = '', onBack, 
               <Ionicons name="shield-checkmark" size={34} color="#16a34a" />
             </View>
           </View>
-          <Title>Create New Password</Title>
-          <Subtitle>Your code is verified. Choose a strong password you haven’t used before.</Subtitle>
-          <Field error={Boolean(error) && !passwordIsStrong(password)} label="New password" value={password} onChangeText={setPassword} placeholder="Create new password" secureTextEntry icon="lock-closed-outline" />
-          <Field error={Boolean(error) && confirm !== password} label="Confirm password" value={confirm} onChangeText={setConfirm} placeholder="Confirm new password" secureTextEntry icon="lock-closed-outline" />
+          <Title>{t("Create New Password")}</Title>
+          <Subtitle>{t("Your code is verified. Choose a strong password you haven’t used before.")}</Subtitle>
+          <Field error={Boolean(error) && !passwordIsStrong(password)} label={t("New password")} value={password} onChangeText={setPassword} placeholder={t("Create new password")} secureTextEntry icon="lock-closed-outline" />
+          <Field error={Boolean(error) && confirm !== password} label={t("Confirm password")} value={confirm} onChangeText={setConfirm} placeholder={t("Confirm new password")} secureTextEntry icon="lock-closed-outline" />
           {password || confirm ? <PasswordChecklist password={password} confirm={confirm} /> : null}
           <ErrorText>{error}</ErrorText>
-          <View style={{ marginTop: 10 }}><PrimaryButton title={busy ? 'Saving...' : 'Reset Password'} onPress={busy ? undefined : resetPassword} /></View>
+          <View style={{ marginTop: 10 }}><PrimaryButton title={busy ? t("Saving...") : t("Reset Password")} onPress={busy ? undefined : resetPassword} /></View>
         </>
       );
     }
@@ -135,9 +137,9 @@ export default function ForgotPasswordScreen({ mode, initialEmail = '', onBack, 
             </View>
           </View>
         </View>
-        <Title>Password Reset!</Title>
-        <Text style={{ textAlign: 'center', fontSize: 15, lineHeight: 23, color: MUTED, marginTop: 10, marginBottom: 34 }}>{'Your password has been updated.\nLog in with your new password.'}</Text>
-        <PrimaryButton title="Back to Login" onPress={onComplete} />
+        <Title>{t("Password Reset!")}</Title>
+        <Text style={{ textAlign: 'center', fontSize: 15, lineHeight: 23, color: MUTED, marginTop: 10, marginBottom: 34 }}>{t("Your password has been updated. Log in with your new password.")}</Text>
+        <PrimaryButton title={t("Back to Login")} onPress={onComplete} />
       </View>
     );
   })();

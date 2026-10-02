@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useEffect, useRef, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -92,6 +93,7 @@ function ModeButton({ mode, title, active, onPress, scale, fontsLoaded }) {
 }
 
 export default function WelcomeScreen({ onSelectMode }) {
+  const { t } = useLanguage();
   const animateIntro = useRef(!welcomeIntroPlayed).current;
   const [welcomeChars, setWelcomeChars] = useState(animateIntro ? 0 : welcomeText.length);
   const [subtitleChars, setSubtitleChars] = useState(animateIntro ? 0 : welcomeSubtitle.length);
@@ -208,13 +210,13 @@ export default function WelcomeScreen({ onSelectMode }) {
           </View>
           <View style={{ marginTop: 30 * scale, marginHorizontal: 20 * scale, gap: 11 * scale }}>
             <Animated.View style={{ opacity: buttonOpacity[0], transform: [{ translateY: buttonOffset[0] }, { scale: buttonScales.student }] }}>
-              <ModeButton mode="student" title="Student" active scale={scale} fontsLoaded={fontsLoaded} onPress={() => selectMode('student')} />
+              <ModeButton mode="student" title={t("Student")} active scale={scale} fontsLoaded={fontsLoaded} onPress={() => selectMode('student')} />
             </Animated.View>
             <Animated.View style={{ opacity: buttonOpacity[1], transform: [{ translateY: buttonOffset[1] }, { scale: buttonScales.staff }] }}>
-              <ModeButton mode="staff" title="Staff" scale={scale} fontsLoaded={fontsLoaded} onPress={() => selectMode('staff')} />
+              <ModeButton mode="staff" title={t("Staff")} scale={scale} fontsLoaded={fontsLoaded} onPress={() => selectMode('staff')} />
             </Animated.View>
             <Animated.View style={{ opacity: buttonOpacity[2], transform: [{ translateY: buttonOffset[2] }, { scale: buttonScales.institution }] }}>
-              <ModeButton mode="institution" title="Institution" scale={scale} fontsLoaded={fontsLoaded} onPress={() => selectMode('institution')} />
+              <ModeButton mode="institution" title={t("Institution")} scale={scale} fontsLoaded={fontsLoaded} onPress={() => selectMode('institution')} />
             </Animated.View>
           </View>
           <View style={{ flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'flex-end' }}>

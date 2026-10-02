@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useEffect, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Text, View } from 'react-native';
@@ -16,13 +17,14 @@ const iconFor = (action = '') => {
 
 // Every activity in the institution: its own admin actions and what its students and staff do.
 export default function ActivityScreen({ api, onBack, onSeen = () => {} }) {
+  const { t } = useLanguage();
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
-    api.request('/notifications').then((result) => { setItems(result.items || []); setLoaded(true); return api.request('/notifications/seen', {}, 'POST').then(() => onSeen()); }).catch((cause) => { setError(cause.message); setLoaded(true); });
+    api.request('/notifications').then((result) => { setItems(result.items || []); setLoaded(true); return api.request('/notifications/seen', {}, 'POST').then(() => onSeen()); }).catch((cause) => { setError(t(cause.message)); setLoaded(true); });
   }, []);
-  return <Page title="Notifications" subtitle="Everything happening across your institution." onBack={onBack}>
+  return <Page title={t("Notifications")} subtitle={t("Everything happening across your institution.")} onBack={onBack}>
     {error ? <Text style={{ color: C.red, marginBottom: 10 }}>{error}</Text> : null}
     {items.length ? items.map((item) => <Card key={item.id} style={item.unread ? { borderColor: C.purple, backgroundColor: '#F8F5FF' } : undefined}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
@@ -34,6 +36,6 @@ export default function ActivityScreen({ api, onBack, onSeen = () => {} }) {
         </View>
         {item.unread ? <View style={{ width: 9, height: 9, borderRadius: 5, marginTop: 5, backgroundColor: C.purple }} /> : null}
       </View>
-    </Card>) : loaded && !error ? <Empty title="No activity yet" detail="Actions by you, your staff and your students will appear here." /> : null}
+    </Card>) : loaded && !error ? <Empty title={t("No activity yet")} detail={t("Actions by you, your staff and your students will appear here.")} /> : null}
   </Page>;
 }

@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScreenTransition } from '../components/Shared';
 import ErrorBanner from '../components/ErrorBanner';
@@ -9,6 +10,7 @@ import { ClearedTabScreen, ClearancesScreen, HomeScreen, NotificationsScreen, Pr
 import { BottomTabs, MUTED, PURPLE, SolidButton } from './ui';
 
 export default function StudentApp({ session, onSignOut }) {
+  const { t } = useLanguage();
   const token = session.token;
   const [overview, setOverview] = useState(null);
   const [error, setError] = useState('');
@@ -21,7 +23,7 @@ export default function StudentApp({ session, onSignOut }) {
       setOverview(await apiRequest('/api/student/overview', undefined, token));
       setError('');
     } catch (cause) {
-      setError(cause.message);
+      setError(t(cause.message));
     }
   }, [token]);
 
@@ -61,10 +63,10 @@ export default function StudentApp({ session, onSignOut }) {
         {error ? (
           <>
             <View style={{ width: '100%' }}><ErrorBanner message={error} /></View>
-            <View style={{ width: 200 }}><SolidButton title="Try Again" onPress={reloadOverview} /></View>
-            <View style={{ width: 200, marginTop: 10 }}><SolidButton variant="outline" title="Sign Out" onPress={onSignOut} /></View>
+            <View style={{ width: 200 }}><SolidButton title={t("Try Again")} onPress={reloadOverview} /></View>
+            <View style={{ width: 200, marginTop: 10 }}><SolidButton variant="outline" title={t("Sign Out")} onPress={onSignOut} /></View>
           </>
-        ) : <><ActivityIndicator color={PURPLE} /><Text style={{ marginTop: 10, color: MUTED }}>Loading your clearances...</Text></>}
+        ) : <><ActivityIndicator color={PURPLE} /><Text style={{ marginTop: 10, color: MUTED }}>{t("Loading your clearances...")}</Text></>}
       </SafeAreaView>
     );
   }

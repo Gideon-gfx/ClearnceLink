@@ -1,3 +1,4 @@
+import { LanguageProvider } from './src/i18n/LanguageContext';
 import './global.css';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, BackHandler, View } from 'react-native';
@@ -22,7 +23,7 @@ import { clearRememberedSession, loadRememberedToken } from './src/components/re
 import { unregisterPushNotifications, usePushNotifications } from './src/components/pushNotifications';
 
 export default function App() {
-  return <SafeAreaProvider><BugReportProvider><AppScreens /></BugReportProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><BugReportProvider><LanguageProvider><AppScreens /></LanguageProvider></BugReportProvider></SafeAreaProvider>;
 }
 
 function AppScreens() {

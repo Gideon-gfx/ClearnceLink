@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useEffect, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
@@ -32,6 +33,7 @@ function Chip({ label, icon, on, onPress }: { label: string; icon?: string; on: 
 
 // Choose where the stamp goes on every page: the top, bottom, left or right, or drag it anywhere on a small page preview.
 export default function StampPlacement({ visible, imageUri, value, onClose, onSave }: { visible: boolean; imageUri: string | null; value?: Placement | null; onClose: () => void; onSave: (placement: Placement) => Promise<void> }) {
+  const { t } = useLanguage();
   const [placement, setPlacement] = useState<Placement>(value || DEFAULT_PLACEMENT);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -53,7 +55,7 @@ export default function StampPlacement({ visible, imageUri, value, onClose, onSa
   const save = async () => {
     setBusy(true); setError('');
     try { await onSave(placement.mode === 'default' ? { ...placement, mode: 'bottom' } : placement); onClose(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save the position.'); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : t("Could not save the position.")); }
     finally { setBusy(false); }
   };
 
@@ -64,11 +66,11 @@ export default function StampPlacement({ visible, imageUri, value, onClose, onSa
         <View style={{ backgroundColor: 'white', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, maxHeight: '94%' }}>
           <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: '#D6D3DF', marginBottom: 12 }} />
           <ScrollView showsVerticalScrollIndicator={false} scrollEnabled={!dragging}>
-            <Text style={{ fontSize: 21, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK }}>Stamp position</Text>
-            <Text style={{ fontSize: 14, color: MUTED, marginTop: 4, marginBottom: 14 }}>Choose where your stamp goes on every page you clear.</Text>
+            <Text style={{ fontSize: 21, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK }}>{t("Stamp position")}</Text>
+            <Text style={{ fontSize: 14, color: MUTED, marginTop: 4, marginBottom: 14 }}>{t("Choose where your stamp goes on every page you clear.")}</Text>
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-              {MODES.map(([mode, label, icon]) => <Chip key={mode} label={label} icon={icon} on={placement.mode === mode} onPress={() => setPlacement((current) => ({ ...current, mode, x: mode === 'custom' && current.mode !== 'custom' ? spot(current).x : current.x, y: mode === 'custom' && current.mode !== 'custom' ? spot(current).y : current.y }))} />)}
+              {MODES.map(([mode, label, icon]) => <Chip key={mode} label={t(label)} icon={icon} on={placement.mode === mode} onPress={() => setPlacement((current) => ({ ...current, mode, x: mode === 'custom' && current.mode !== 'custom' ? spot(current).x : current.x, y: mode === 'custom' && current.mode !== 'custom' ? spot(current).y : current.y }))} />)}
             </View>
 
             <View style={{ alignSelf: 'center', marginBottom: 6 }}>
@@ -83,19 +85,19 @@ export default function StampPlacement({ visible, imageUri, value, onClose, onSa
                 </View>
               </View>
             </View>
-            <Text style={{ textAlign: 'center', fontSize: 13, color: MUTED, marginBottom: 14 }}>{placement.mode === 'custom' ? 'Drag on the page to place it exactly where you want.' : 'Tap Custom, or drag on the page, to place it yourself.'}</Text>
+            <Text style={{ textAlign: 'center', fontSize: 13, color: MUTED, marginBottom: 14 }}>{placement.mode === 'custom' ? t("Drag on the page to place it exactly where you want.") : t("Tap Custom, or drag on the page, to place it yourself.")}</Text>
 
-            <Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', fontWeight: '700', color: INK, marginBottom: 8 }}>Size</Text>
+            <Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', fontWeight: '700', color: INK, marginBottom: 8 }}>{t("Size")}</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-              {(['small', 'medium', 'large'] as const).map((size) => <Chip key={size} label={size.charAt(0).toUpperCase() + size.slice(1)} on={placement.size === size} onPress={() => setPlacement((current) => ({ ...current, size }))} />)}
+              {(['small', 'medium', 'large'] as const).map((size) => <Chip key={size} label={t(size.charAt(0).toUpperCase() + size.slice(1))} on={placement.size === size} onPress={() => setPlacement((current) => ({ ...current, size }))} />)}
             </View>
 
             {error ? <Text style={{ color: '#dc2626', marginBottom: 10, fontSize: 14 }}>{error}</Text> : null}
             <Pressable accessibilityRole="button" onPress={busy ? undefined : save} style={{ height: 58, borderRadius: 15, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', opacity: busy ? 0.7 : 1 }}>
               {busy ? <ActivityIndicator color="white" /> : <Ionicons name="checkmark" size={22} color="white" style={{ marginRight: 8 }} />}
-              <Text style={{ fontSize: 17, fontFamily: 'Inter_700Bold', fontWeight: '700', color: 'white' }}>{busy ? 'Saving...' : 'Save position'}</Text>
+              <Text style={{ fontSize: 17, fontFamily: 'Inter_700Bold', fontWeight: '700', color: 'white' }}>{busy ? t("Saving...") : t("Save position")}</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" onPress={busy ? undefined : onClose} style={{ alignItems: 'center', padding: 14 }}><Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', fontWeight: '700', color: MUTED }}>Cancel</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={busy ? undefined : onClose} style={{ alignItems: 'center', padding: 14 }}><Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', fontWeight: '700', color: MUTED }}>{t("Cancel")}</Text></Pressable>
           </ScrollView>
         </View>
       </View>

@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useEffect, useRef, useState } from 'react';
 import { useConfirm } from './ConfirmSheet';
 
@@ -7,12 +8,13 @@ export function useSignOut(onSignOut) {
   const [busy, setBusy] = useState(false);
   const timer = useRef(null);
   const { confirm, sheet } = useConfirm();
+  const { t } = useLanguage();
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   const ask = () => {
     if (busy) return;
     confirm({
-      tone: 'danger', icon: 'log-out-outline', title: 'Sign out?', message: 'You will need to sign in again to use your account.',
-      actions: [{ label: 'Sign out', variant: 'danger', onPress: () => { setBusy(true); timer.current = setTimeout(() => onSignOut(), 800); } }],
+      tone: 'danger', icon: 'log-out-outline', title: t('signOutTitle'), message: t('signOutMessage'), cancelLabel: t('cancel'),
+      actions: [{ label: t('signOutAction'), variant: 'danger', onPress: () => { setBusy(true); timer.current = setTimeout(() => onSignOut(), 800); } }],
     });
   };
   return [busy, ask, sheet];

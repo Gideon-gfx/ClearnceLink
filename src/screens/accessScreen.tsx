@@ -1,9 +1,11 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StatusBar, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton } from '../components/Shared';
 
 export function AccessScreen({ mode, onBack }) {
+  const { t } = useLanguage();
   const isStudent = mode === 'student';
   const [accessId, setAccessId] = useState('');
   const { width } = useWindowDimensions();
@@ -17,9 +19,9 @@ export function AccessScreen({ mode, onBack }) {
         <Text className="text-[34px] font-light leading-[38px] text-ink">‹</Text>
       </Pressable>
       <View className="items-center px-1 pt-[46px]">
-        <Text className="text-center text-[22px] font-bold text-ink">{isStudent ? 'Student Access' : 'Staff Access'}</Text>
+        <Text className="text-center text-[22px] font-bold text-ink">{isStudent ? t("Student Access") : t("Staff Access")}</Text>
         <Text className="mb-6 mt-2 max-w-[280px] text-center text-[13px] leading-[19px] text-muted">
-          {isStudent ? 'Enter your Clearance ID to get started.' : 'Enter your Staff Access ID provided by your institution.'}
+          {isStudent ? t("Enter your Clearance ID to get started.") : t("Enter your Staff Access ID provided by your institution.")}
         </Text>
         <View className="h-[53px] w-full flex-row items-center rounded-xl border border-line px-3">
           <Text className="mr-3 text-[22px] text-brand">⌕</Text>
@@ -34,11 +36,11 @@ export function AccessScreen({ mode, onBack }) {
           />
         </View>
         <View className="mt-6 w-full">
-          <PrimaryButton title="Continue" onPress={() => {}} />
+          <PrimaryButton title={t("Continue")} onPress={() => {}} />
         </View>
-        <Text className="mt-[30px] text-center text-xs text-ink">{isStudent ? 'Don’t have a Clearance ID?' : 'Need help?'}</Text>
+        <Text className="mt-[30px] text-center text-xs text-ink">{isStudent ? t("Don’t have a Clearance ID?") : t("Need help?")}</Text>
         <Text className="mt-1 text-center text-xs text-muted">
-          {isStudent ? 'Contact your institution.' : 'Contact your institution administrator.'}
+          {isStudent ? t("Contact your institution.") : t("Contact your institution administrator.")}
         </Text>
       </View>
     </SafeAreaView>

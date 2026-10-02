@@ -1,3 +1,5 @@
+import LanguagePicker from '../i18n/LanguagePicker';
+import { useLanguage } from '../i18n/LanguageContext';
 import BackArrow from '../components/BackArrow';
 import TextLink from '../components/TextLink';
 import { useEffect, useState } from 'react';
@@ -76,14 +78,16 @@ function ClearanceCard({ clearance, staff, onPress, onDelete }) {
 }
 
 function StudentQuickActions({ app }) {
+  const { t } = useLanguage();
   return (
     <View style={{ marginBottom: 20, borderWidth: 1, borderColor: '#E5E1F5', borderRadius: 14, backgroundColor: 'white', overflow: 'hidden' }}>
-      {[['Add Student', 'person-add-outline', 'add-student'], ['Import Students', 'cloud-upload-outline', 'import-students']].map(([label, icon, target], index) => <Pressable key={target} accessibilityRole="button" accessibilityLabel={label} onPress={() => app.go(target)} style={{ minHeight: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderTopWidth: index ? 1 : 0, borderTopColor: '#E5E1F5' }}><Ionicons name={icon} size={22} color={PURPLE} /><Text style={{ flex: 1, marginLeft: 12, fontSize: 15, fontFamily: 'Inter_600SemiBold', color: INK }}>{label}</Text><Ionicons name="chevron-forward" size={18} color={MUTED} /></Pressable>)}
+      {[[t('addStudent'), 'person-add-outline', 'add-student'], [t('importStudents'), 'cloud-upload-outline', 'import-students']].map(([label, icon, target], index) => <Pressable key={target} accessibilityRole="button" accessibilityLabel={label} onPress={() => app.go(target)} style={{ minHeight: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderTopWidth: index ? 1 : 0, borderTopColor: '#E5E1F5' }}><Ionicons name={icon} size={22} color={PURPLE} /><Text style={{ flex: 1, marginLeft: 12, fontSize: 15, fontFamily: 'Inter_600SemiBold', color: INK }}>{label}</Text><Ionicons name="chevron-forward" size={18} color={MUTED} /></Pressable>)}
     </View>
   );
 }
 
 export function HomeScreen({ app }) {
+  const { t } = useLanguage();
   const { staff, counts, clearances } = app.overview;
   const hour = new Date().getHours();
   return (
@@ -92,33 +96,34 @@ export function HomeScreen({ app }) {
         <InstitutionLogo hasLogo={app.overview.hasLogo} token={app.token} size={58} />
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text numberOfLines={2} style={{ fontSize: 19, lineHeight: 23, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK }}>{staff.institutionName}</Text>
-          <Text style={{ fontSize: 14, color: MUTED, marginTop: 2 }}>Staff Portal</Text>
+          <Text style={{ fontSize: 14, color: MUTED, marginTop: 2 }}>{t('portalStaff')}</Text>
         </View>
+        <View style={{ marginRight: 6 }}><LanguagePicker /></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Notifications" onPress={() => app.setTab('notifications')} style={{ padding: 6 }}>
           <Ionicons name="notifications-outline" size={27} color={INK} />
           {app.overview.unread > 0 ? <View style={{ position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#dc2626', alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: 'white', fontSize: 12, fontWeight: '700' }}>{app.overview.unread}</Text></View> : null}
         </Pressable>
       </View>
-      <Text style={{ fontSize: 18, color: INK }}>{hour < 12 ? 'Good morning,' : hour < 17 ? 'Good afternoon,' : 'Good evening,'}</Text>
+      <Text style={{ fontSize: 18, color: INK }}>{`${hour < 12 ? t('goodMorning') : hour < 17 ? t('goodAfternoon') : t('goodEvening')},`}</Text>
       <Text style={{ fontSize: 26, fontWeight: '800', color: INK }}>{staff.name} 👋</Text>
-      <Text style={{ fontSize: 16, color: MUTED, marginTop: 4 }}>{staff.jobTitle}{staff.role === 'officer' ? <Text style={{ color: PURPLE, fontWeight: '700' }}> • Clearance Officer</Text> : null}</Text>
+      <Text style={{ fontSize: 16, color: MUTED, marginTop: 4 }}>{staff.jobTitle}{staff.role === 'officer' ? <Text style={{ color: PURPLE, fontWeight: '700' }}> {t("• Clearance Officer")}</Text> : null}</Text>
       <Text style={{ fontSize: 16, color: MUTED, marginBottom: 16 }}>{scopeLine(staff)}</Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginBottom: 22 }}>
-        <Tile value={counts.pending} label="Pending Review" icon="hourglass-outline" tone="amber" onPress={() => app.setTab('students', 'pending')} />
-        <Tile value={counts.action} label="Action Required" icon="alert" tone="red" onPress={() => app.setTab('students', 'action')} />
-        <Tile value={counts.cleared} label="Cleared" icon="checkmark" tone="green" onPress={() => app.setTab('students', 'cleared')} />
-        <Tile value={counts.resubmitted} label="Re-submitted" icon="refresh" tone="purple" onPress={() => app.setTab('students', 'pending')} />
+        <Tile value={counts.pending} label={t('pendingReview')} icon="hourglass-outline" tone="amber" onPress={() => app.setTab('students', 'pending')} />
+        <Tile value={counts.action} label={t('actionRequired')} icon="alert" tone="red" onPress={() => app.setTab('students', 'action')} />
+        <Tile value={counts.cleared} label={t('navCleared')} icon="checkmark" tone="green" onPress={() => app.setTab('students', 'cleared')} />
+        <Tile value={counts.resubmitted} label={t('resubmitted')} icon="refresh" tone="purple" onPress={() => app.setTab('students', 'pending')} />
       </View>
 
-      <Text style={{ fontSize: 17, fontWeight: '700', color: INK, marginBottom: 10 }}>Quick Actions</Text>
+      <Text style={{ fontSize: 17, fontWeight: '700', color: INK, marginBottom: 10 }}>{t('quickActions')}</Text>
       <StudentQuickActions app={app} />
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-        <Text style={{ fontSize: 17, fontWeight: '700', color: INK }}>My Clearances</Text>
-        <TextLink onPress={() => app.setTab('clearances')} color={PURPLE} style={{ fontSize: 15 }}>View All →</TextLink>
+        <Text style={{ fontSize: 17, fontWeight: '700', color: INK }}>{t('myClearances')}</Text>
+        <TextLink onPress={() => app.setTab('clearances')} color={PURPLE} style={{ fontSize: 15 }}>{t('viewAll')} →</TextLink>
       </View>
-      {clearances.length === 0 ? <Text style={{ color: MUTED, fontSize: 16 }}>No clearance responsibilities have been assigned to you yet.</Text> : null}
+      {clearances.length === 0 ? <Text style={{ color: MUTED, fontSize: 16 }}>{t('noClearancesAssigned')}</Text> : null}
       {clearances.slice(0, 3).map((item) => <View key={item.id} style={{ marginBottom: 12 }}><ClearanceCard clearance={item} staff={staff} onPress={() => app.setTab('students')} /></View>)}
     </ScrollView>
   );
@@ -127,6 +132,7 @@ export function HomeScreen({ app }) {
 const CHIPS = [['all', 'All'], ['pending', 'Pending'], ['action', 'Action'], ['cleared', 'Cleared']];
 
 function ReviewStudentsView({ app, switcher }) {
+  const { t } = useLanguage();
   const [group, setGroup] = useState(['pending', 'action', 'cleared'].includes(app.filter) ? app.filter : 'all');
   const [query, setQuery] = useState('');
   const [rows, setRows] = useState(null);
@@ -138,7 +144,7 @@ function ReviewStudentsView({ app, switcher }) {
     const timer = setTimeout(() => {
       apiRequest(`/api/staff/students?group=${group}&q=${encodeURIComponent(query.trim())}`, undefined, app.token)
         .then((result) => { if (live) { setRows(result.students); setError(''); } })
-        .catch((cause) => { if (live) setError(cause.message); });
+        .catch((cause) => { if (live) setError(t(cause.message)); });
     }, query ? 250 : 0);
     return () => { live = false; clearTimeout(timer); };
   }, [group, query, app.version]);
@@ -147,7 +153,7 @@ function ReviewStudentsView({ app, switcher }) {
     <View style={{ flex: 1 }}>
       <View style={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 }}>
         <BackArrow onPress={() => app.setTab('home')} size={30} color={INK} style={{ width: 44, height: 48, justifyContent: 'center' }} />
-        <Text style={{ flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK }}>Students</Text>
+        <Text style={{ flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK }}>{t("Students")}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Filter" onPress={() => { setQuery(''); setGroup(group === 'all' ? 'pending' : group === 'pending' ? 'action' : group === 'action' ? 'cleared' : 'all'); }} style={{ width: 44, alignItems: 'flex-end' }}>
           <Ionicons name="funnel-outline" size={24} color={PURPLE} />
         </Pressable>
@@ -155,7 +161,7 @@ function ReviewStudentsView({ app, switcher }) {
       {switcher}
       <View style={{ marginHorizontal: 18, marginBottom: 12, height: 54, borderRadius: 14, borderWidth: 2, borderColor: '#D2CAF1', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' }}>
         <Ionicons name="search-outline" size={22} color={PURPLE} style={{ marginRight: 10 }} />
-        <TextInput value={query} onChangeText={setQuery} placeholder="Search name, JAMB or matric no..." placeholderTextColor="#a4a1bc" style={{ flex: 1, padding: 0, fontSize: 17, color: INK, fontFamily: 'Inter_500Medium' }} />
+        <TextInput value={query} onChangeText={setQuery} placeholder={t("Search name, JAMB or matric no...")} placeholderTextColor="#a4a1bc" style={{ flex: 1, padding: 0, fontSize: 17, color: INK, fontFamily: 'Inter_500Medium' }} />
       </View>
       <View style={{ flexDirection: 'row', paddingHorizontal: 18, marginBottom: 8, gap: 8 }}>
         {CHIPS.map(([key, label]) => {
@@ -163,7 +169,7 @@ function ReviewStudentsView({ app, switcher }) {
           const count = ` (${chipCounts[key] ?? 0})`;
           return (
             <Pressable key={key} onPress={() => { setQuery(''); setGroup(key); }} style={{ paddingHorizontal: 14, height: 40, borderRadius: on ? 20 : 4, justifyContent: 'center', backgroundColor: on ? PURPLE : '#f3f0fd', borderWidth: on ? 0 : 1.5, borderColor: '#D9D2F3' }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: on ? 'white' : MUTED }}>{label}{count}</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: on ? 'white' : MUTED }}>{t(label)}{count}</Text>
             </Pressable>
           );
         })}
@@ -171,7 +177,7 @@ function ReviewStudentsView({ app, switcher }) {
       <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20 }} refreshControl={useRefresh(app)}>
         {rows === null && !error ? <ActivityIndicator color={PURPLE} style={{ marginTop: 40 }} /> : null}
         <View style={{ marginTop: 20 }}><ErrorBanner message={error} /></View>
-        {rows && rows.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, marginTop: 50 }}>{query ? 'No students match your search.' : 'No students in this list.'}</Text> : null}
+        {rows && rows.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, marginTop: 50 }}>{query ? t("No students match your search.") : t("No students in this list.")}</Text> : null}
         {(rows || []).map((item) => (
           <Pressable key={item.id} onPress={() => app.go('student', { id: item.id })} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#E5E1F5' }}>
             <Avatar name={item.name} fileId={item.photoFileId} token={app.token} size={50} />
@@ -198,12 +204,13 @@ const DELIVERY_COLORS = { green: ['#15803d', '#dcfce7'], amber: ['#b45309', '#fe
 
 // The students this staff member added themselves (officer or not).
 function MyStudentsView({ app, switcher }) {
+  const { t } = useLanguage();
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   useEffect(() => {
     let live = true;
-    apiRequest('/api/staff/my-students', undefined, app.token).then((result) => { if (live) { setRows(result.items); setError(''); } }).catch((cause) => { if (live) setError(cause.message); });
+    apiRequest('/api/staff/my-students', undefined, app.token).then((result) => { if (live) { setRows(result.items); setError(''); } }).catch((cause) => { if (live) setError(t(cause.message)); });
     return () => { live = false; };
   }, [app.version]);
   // While any email is still going out, check again shortly so the status updates by itself.
@@ -215,18 +222,18 @@ function MyStudentsView({ app, switcher }) {
   const resend = async (item) => {
     setNote(''); setError('');
     try { await apiRequest(`/api/staff/my-students/${item.id}/resend`, {}, app.token); setNote(`Clearance ID sent to ${item.email}.`); app.bump(); }
-    catch (cause) { setError(cause.message); }
+    catch (cause) { setError(t(cause.message)); }
   };
   return (
     <View style={{ flex: 1 }}>
-      <TabTitle title="My Students" onBack={() => app.setTab('home')} />
+      <TabTitle title={t("My Students")} onBack={() => app.setTab('home')} />
       {switcher}
       <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 24 }} refreshControl={useRefresh(app)}>
         <StudentQuickActions app={app} />
         <ErrorBanner message={error} />
         {note ? <Text style={{ color: '#15803d', fontSize: 14, marginBottom: 10 }}>{note}</Text> : null}
         {rows === null && !error ? <ActivityIndicator color={PURPLE} style={{ marginTop: 30 }} /> : null}
-        {rows && rows.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, fontSize: 15, lineHeight: 22, marginTop: 24 }}>You haven’t added any students yet. Use Add Student or Import Students above. Their Clearance ID is emailed to them automatically.</Text> : null}
+        {rows && rows.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, fontSize: 15, lineHeight: 22, marginTop: 24 }}>{t("You haven’t added any students yet. Use Add Student or Import Students above. Their Clearance ID is emailed to them automatically.")}</Text> : null}
         {(rows || []).map((item) => {
           const [label, tone] = DELIVERY[item.deliveryStatus] || DELIVERY.pending;
           const [fg, bg] = DELIVERY_COLORS[tone];
@@ -238,9 +245,9 @@ function MyStudentsView({ app, switcher }) {
                   <Text style={{ fontSize: 13, color: PURPLE, marginTop: 2 }}>{item.clearanceId}</Text>
                   <Text numberOfLines={1} style={{ fontSize: 13, color: MUTED, marginTop: 2 }}>{item.department} • {item.level} Level</Text>
                 </View>
-                <View style={{ backgroundColor: bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}><Text style={{ fontSize: 12, fontFamily: 'Inter_700Bold', fontWeight: '700', color: fg }}>{label}</Text></View>
+                <View style={{ backgroundColor: bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}><Text style={{ fontSize: 12, fontFamily: 'Inter_700Bold', fontWeight: '700', color: fg }}>{t(label)}</Text></View>
               </View>
-              {item.deliveryStatus === 'failed' ? <View style={{ marginTop: 10 }}>{item.deliveryError ? <Text style={{ fontSize: 13, color: '#dc2626', marginBottom: 8 }}>{item.deliveryError}</Text> : null}<SolidButton variant="outline" icon="mail-outline" title="Resend Clearance ID" onPress={() => resend(item)} /></View> : null}
+              {item.deliveryStatus === 'failed' ? <View style={{ marginTop: 10 }}>{item.deliveryError ? <Text style={{ fontSize: 13, color: '#dc2626', marginBottom: 8 }}>{item.deliveryError}</Text> : null}<SolidButton variant="outline" icon="mail-outline" title={t("Resend Clearance ID")} onPress={() => resend(item)} /></View> : null}
             </Card>
           );
         })}
@@ -250,14 +257,15 @@ function MyStudentsView({ app, switcher }) {
 }
 
 export function StudentsScreen({ app }) {
+  const { t } = useLanguage();
   // Officers can switch between reviewing submissions and their own students; other staff only have their own students.
   const canReview = Boolean(app.overview.canCreate);
   const [mode, setMode] = useState(app.filter === 'mine' || !canReview ? 'mine' : 'review');
   const switcher = canReview ? (
     <View style={{ flexDirection: 'row', padding: 4, marginHorizontal: 18, marginBottom: 14, borderRadius: 13, backgroundColor: '#f3f0fd' }}>
-      {[['review', 'Review'], ['mine', 'My Students']].map(([key, label]) => (
+      {[['review', t("Review")], ['mine', t("My Students")]].map(([key, label]) => (
         <Pressable key={key} accessibilityRole="button" onPress={() => setMode(key)} style={{ flex: 1, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: mode === key ? PURPLE : 'transparent' }}>
-          <Text style={{ fontSize: 15, color: mode === key ? 'white' : MUTED, fontFamily: mode === key ? 'Inter_700Bold' : 'Inter_600SemiBold' }}>{label}</Text>
+          <Text style={{ fontSize: 15, color: mode === key ? 'white' : MUTED, fontFamily: mode === key ? 'Inter_700Bold' : 'Inter_600SemiBold' }}>{t(label)}</Text>
         </Pressable>
       ))}
     </View>
@@ -266,6 +274,7 @@ export function StudentsScreen({ app }) {
 }
 
 export function ClearancesScreen({ app }) {
+  const { t } = useLanguage();
   const { staff, clearances, canCreate } = app.overview;
   const [target, setTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -273,23 +282,23 @@ export function ClearancesScreen({ app }) {
   const remove = async () => {
     setDeleting(true);
     try { await apiRequest(`/api/staff/clearances/${target.id}`, {}, app.token, 'DELETE'); setError(''); setTarget(null); app.bump(); }
-    catch (cause) { setTarget(null); setError(cause.message); }
+    catch (cause) { setTarget(null); setError(t(cause.message)); }
     finally { setDeleting(false); }
   };
   return (
     <View style={{ flex: 1 }}>
-      <TabTitle title="My Clearances" onBack={() => app.setTab('home')} />
+      <TabTitle title={t("My Clearances")} onBack={() => app.setTab('home')} />
       <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20 }} refreshControl={useRefresh(app)}>
         <Card style={{ marginBottom: 14, backgroundColor: '#faf8ff' }}>
-          <Text style={{ fontSize: 12, fontWeight: '700', color: PURPLE, letterSpacing: 0.5 }}>MY CLEARANCE ROLE</Text>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: PURPLE, letterSpacing: 0.5 }}>{t("MY CLEARANCE ROLE")}</Text>
           <Text style={{ fontSize: 16, fontWeight: '700', color: INK, marginTop: 4 }}>{staff.scope.department}</Text>
           <Text style={{ fontSize: 14, color: MUTED }}>{staff.scope.level} Level • {staff.scope.session}</Text>
-          <Text style={{ fontSize: 13, color: MUTED, marginTop: 6 }}>You review only the clearance responsibilities assigned to you within this scope.</Text>
+          <Text style={{ fontSize: 13, color: MUTED, marginTop: 6 }}>{t("You review only the clearance responsibilities assigned to you within this scope.")}</Text>
         </Card>
-        {canCreate ? <View style={{ marginBottom: 16 }}><SolidButton icon="add-circle-outline" title="Create Clearance" onPress={() => app.go('create-clearance')} /></View> : <Card style={{ marginBottom: 16 }}><Text style={{ fontSize: 14, color: MUTED, lineHeight: 20 }}>Only a clearance officer can create clearances. Ask your institution to assign you the officer role.</Text></Card>}
+        {canCreate ? <View style={{ marginBottom: 16 }}><SolidButton icon="add-circle-outline" title={t("Create Clearance")} onPress={() => app.go('create-clearance')} /></View> : <Card style={{ marginBottom: 16 }}><Text style={{ fontSize: 14, color: MUTED, lineHeight: 20 }}>{t("Only a clearance officer can create clearances. Ask your institution to assign you the officer role.")}</Text></Card>}
         <ErrorBanner message={error} />
         {clearances.map((item) => <View key={item.id} style={{ marginBottom: 12 }}><ClearanceCard clearance={item} staff={staff} onPress={() => app.setTab('students')} onDelete={item.mine ? () => setTarget(item) : undefined} /></View>)}
-        {clearances.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, marginTop: 24, fontSize: 15 }}>{canCreate ? 'No clearances yet. Tap Create Clearance to add your first one.' : 'No clearances assigned.'}</Text> : null}
+        {clearances.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, marginTop: 24, fontSize: 15 }}>{canCreate ? t("No clearances yet. Tap Create Clearance to add your first one.") : t("No clearances assigned.")}</Text> : null}
       </ScrollView>
       <Modal transparent visible={Boolean(target)} animationType="fade" onRequestClose={() => setTarget(null)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(23,19,43,0.5)', justifyContent: 'flex-end' }} onPress={() => (deleting ? undefined : setTarget(null))}>
@@ -297,11 +306,11 @@ export function ClearancesScreen({ app }) {
             <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: '#D6D3DF', marginBottom: 18 }} />
             <View style={{ alignItems: 'center', marginBottom: 20 }}>
               <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}><Ionicons name="trash-outline" size={30} color="#DC2626" /></View>
-              <Text style={{ fontSize: 20, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK, textAlign: 'center' }}>Delete clearance?</Text>
+              <Text style={{ fontSize: 20, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK, textAlign: 'center' }}>{t("Delete clearance?")}</Text>
               <Text style={{ marginTop: 8, fontSize: 15, lineHeight: 22, color: MUTED, textAlign: 'center' }}>“{target?.name}” will be removed for you and your students. This only works before students have submitted anything.</Text>
             </View>
-            <SolidButton variant="danger" icon="trash-outline" title="Delete clearance" busy={deleting} onPress={remove} />
-            <View style={{ marginTop: 10 }}><SolidButton variant="outline" title="Cancel" disabled={deleting} onPress={() => setTarget(null)} /></View>
+            <SolidButton variant="danger" icon="trash-outline" title={t("Delete clearance")} busy={deleting} onPress={remove} />
+            <View style={{ marginTop: 10 }}><SolidButton variant="outline" title={t("Cancel")} disabled={deleting} onPress={() => setTarget(null)} /></View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -312,6 +321,7 @@ export function ClearancesScreen({ app }) {
 const NOTE_ICONS = { submission: ['document-text', PURPLE], resubmission: ['refresh-circle', '#d97706'], role: ['ribbon', '#16a34a'] };
 
 export function NotificationsScreen({ app }) {
+  const { t } = useLanguage();
   const [items, setItems] = useState(null);
   useEffect(() => {
     let live = true;
@@ -324,9 +334,9 @@ export function NotificationsScreen({ app }) {
   }, [app.version]);
   return (
     <View style={{ flex: 1 }}>
-      <TabTitle title="Notifications" onBack={() => app.setTab('home')} />
+      <TabTitle title={t("Notifications")} onBack={() => app.setTab('home')} />
       <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20 }} refreshControl={useRefresh(app)}>
-        {items && items.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, marginTop: 50 }}>You’re all caught up.</Text> : null}
+        {items && items.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, marginTop: 50 }}>{t("You’re all caught up.")}</Text> : null}
         {(items || []).map((item) => {
           const [icon, color] = NOTE_ICONS[item.type] || NOTE_ICONS.role;
           return (
@@ -347,13 +357,14 @@ export function NotificationsScreen({ app }) {
 }
 
 export function ProfileScreen({ app }) {
+  const { t } = useLanguage();
   const { open: openBugReport } = useBugReport();
   const [signingOut, askSignOut, signOutSheet] = useSignOut(app.signOut);
   const { staff } = app.overview;
-  const rows = [['Staff Access ID', staff.accessId], ['Institution Staff ID', staff.staffId], ['Job Title', staff.jobTitle], ['Faculty', staff.faculty], ['Department', staff.department], ['Email', staff.email], ['Phone', staff.phone]];
+  const rows = [[t("Staff Access ID"), staff.accessId], [t("Institution Staff ID"), staff.staffId], [t("Job Title"), staff.jobTitle], [t("Faculty"), staff.faculty], [t("Department"), staff.department], [t("Email"), staff.email], [t("Phone"), staff.phone]];
   return (
     <View style={{ flex: 1 }}>
-    <TabTitle title="Profile" onBack={() => app.setTab('home')} />
+    <TabTitle title={t("Profile")} onBack={() => app.setTab('home')} />
     <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 24 }}>
       <View style={{ alignItems: 'center', marginVertical: 12 }}>
         <Avatar name={staff.name} size={92} />
@@ -361,21 +372,21 @@ export function ProfileScreen({ app }) {
         <Text style={{ fontSize: 15, color: MUTED, marginTop: 2 }}>{staff.institutionName}</Text>
       </View>
       <Card style={{ marginBottom: 14, backgroundColor: '#faf8ff' }}>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: PURPLE, letterSpacing: 0.5 }}>MY CLEARANCE ROLE</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: PURPLE, letterSpacing: 0.5 }}>{t("MY CLEARANCE ROLE")}</Text>
         <Text style={{ fontSize: 17, fontWeight: '700', color: INK, marginTop: 4 }}>{staff.scope.department}</Text>
         <Text style={{ fontSize: 15, color: MUTED }}>{staff.scope.level} Level • {staff.scope.session}</Text>
       </Card>
       <Card style={{ padding: 0, marginBottom: 16 }}>
         {rows.map(([label, value], index) => (
           <View key={label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 15, borderTopWidth: index ? 1 : 0, borderTopColor: LINE }}>
-            <Text style={{ fontSize: 15, color: MUTED }}>{label}</Text>
+            <Text style={{ fontSize: 15, color: MUTED }}>{t(label)}</Text>
             <Text style={{ fontSize: 15, fontWeight: '600', color: INK, flexShrink: 1, textAlign: 'right', marginLeft: 16 }}>{value}</Text>
           </View>
         ))}
       </Card>
       <View style={{ marginBottom: 16 }}><StampUploader basePath="/api/staff" token={app.token} /></View>
-      <SolidButton variant="outline" icon="bug-outline" title="Report a bug" onPress={openBugReport} /><View style={{ height: 10 }} />
-      <><SolidButton variant="outline" icon="log-out-outline" title="Sign Out" busy={signingOut} onPress={askSignOut} />{signOutSheet}</>
+      <SolidButton variant="outline" icon="bug-outline" title={t("Report a bug")} onPress={openBugReport} /><View style={{ height: 10 }} />
+      <><SolidButton variant="outline" icon="log-out-outline" title={t('signOut')} busy={signingOut} onPress={askSignOut} />{signOutSheet}</>
     </ScrollView>
     </View>
   );

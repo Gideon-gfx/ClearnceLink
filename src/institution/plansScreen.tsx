@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text, View } from 'react-native';
@@ -26,12 +27,13 @@ export function planSummary(user) {
 
 // The institution's plans, opened from the More screen: see what is active and upgrade or renew.
 export default function PlansScreen({ user, token, onChanged, onBack }) {
+  const { t } = useLanguage();
   const theme = planTheme(user?.plan);
   const enterprise = user?.plan === 'enterprise';
   const inner = <>
     <Ionicons name={theme.icon} size={26} color={enterprise ? 'white' : theme.color} />
     <View style={{ flex: 1, marginLeft: 12 }}>
-      <Text style={{ fontSize: 12, color: enterprise ? 'rgba(255,255,255,0.8)' : C.muted }}>Current plan</Text>
+      <Text style={{ fontSize: 12, color: enterprise ? 'rgba(255,255,255,0.8)' : C.muted }}>{t("Current plan")}</Text>
       <Text style={{ marginTop: 2, fontSize: 18, color: enterprise ? 'white' : theme.color, fontFamily: 'Inter_800ExtraBold', fontWeight: '800' }}>{planSummary(user)}</Text>
     </View>
     {enterprise ? <Ionicons name="sparkles" size={20} color="#FFE9A8" /> : null}
@@ -39,14 +41,14 @@ export default function PlansScreen({ user, token, onChanged, onBack }) {
   const card = { flexDirection: 'row', alignItems: 'center', padding: 14, marginTop: 6, marginBottom: 16, borderRadius: 14 } as const;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
-      <ScreenTitle title="Plans" onBack={onBack} />
+      <ScreenTitle title={t("Plans")} onBack={onBack} />
       <PaymentPanel
         token={token} signedIn renewing={Boolean(user?.expired)} onDone={(updated) => { onChanged(updated); onBack(); }}
         header={<>
           {enterprise
             ? <LinearGradient colors={theme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={card}>{inner}</LinearGradient>
             : <View style={{ ...card, backgroundColor: theme.tint, borderWidth: 2, borderColor: theme.color }}>{inner}</View>}
-          <Text style={{ fontSize: 13, lineHeight: 20, color: C.muted, marginBottom: 16 }}>Choose a plan to upgrade or renew. Your data and records stay exactly as they are.</Text>
+          <Text style={{ fontSize: 13, lineHeight: 20, color: C.muted, marginBottom: 16 }}>{t("Choose a plan to upgrade or renew. Your data and records stay exactly as they are.")}</Text>
         </>}
       />
     </SafeAreaView>

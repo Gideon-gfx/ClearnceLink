@@ -1,3 +1,5 @@
+import LanguagePicker from '../i18n/LanguagePicker';
+import { useLanguage } from '../i18n/LanguageContext';
 import TextLink from '../components/TextLink';
 import { useEffect, useState } from 'react';
 import { useSignOut } from '../components/useSignOut';
@@ -10,9 +12,9 @@ import { useBugReport } from '../components/BugReportShake';
 import FolderExport from './FolderExport';
 import { Card, INK, LINE, MUTED, PURPLE, ProgressBar, RaisedPress, SolidButton, StatusBadge, TabTitle, fileSource, shortName, timeAgo } from './ui';
 
-function greeting() {
+function greeting(t) {
   const hour = new Date().getHours();
-  return hour < 12 ? 'Good morning,' : hour < 17 ? 'Good afternoon,' : 'Good evening,';
+  return `${hour < 12 ? t('goodMorning') : hour < 17 ? t('goodAfternoon') : t('goodEvening')},`;
 }
 
 export function useRefresh(app) {
@@ -55,6 +57,7 @@ export function ClearanceRow({ clearance, onPress, compact }) {
 }
 
 export function HomeScreen({ app }) {
+  const { t } = useLanguage();
   const { overview } = app;
   const student = overview.student;
   // Progress is counted in documents across every clearance, so it moves as each one is cleared.
@@ -71,36 +74,37 @@ export function HomeScreen({ app }) {
           <Text style={{ fontSize: 16, fontWeight: '700', color: INK }}>{student.institutionName}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={{ fontSize: 15, color: MUTED }}>{student.session}</Text><Ionicons name="chevron-down" size={15} color={MUTED} style={{ marginLeft: 4 }} /></View>
         </View>
+        <View style={{ marginRight: 6 }}><LanguagePicker /></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Notifications" onPress={() => app.setTab('notifications')} style={{ padding: 6 }}>
           <Ionicons name="notifications-outline" size={27} color={INK} />
           {app.unread > 0 ? <View style={{ position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#dc2626', alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: 'white', fontSize: 12, fontWeight: '700' }}>{app.unread}</Text></View> : null}
         </Pressable>
       </View>
-      <Text style={{ fontSize: 20, color: INK }}>{greeting()}</Text>
+      <Text style={{ fontSize: 20, color: INK }}>{greeting(t)}</Text>
       <Text style={{ fontSize: 26, fontWeight: '800', color: INK }}>{shortName(student.name)} 👋</Text>
       <Text style={{ fontSize: 16, color: MUTED, marginTop: 4, marginBottom: 16 }}>{student.programme} • {student.level} Level</Text>
 
       <Card style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: INK }}>Overall Clearance Progress</Text>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: INK }}>{t('overallProgress')}</Text>
           <Text style={{ fontSize: 17, fontWeight: '800', color: INK }}>{percent}%</Text>
         </View>
         <ProgressBar percent={percent} height={8} />
-        <Text style={{ marginTop: 8, fontSize: 14, color: MUTED }}>{done} of {stages.length} completed</Text>
+        <Text style={{ marginTop: 8, fontSize: 14, color: MUTED }}>{t('completedOf', { done, total: stages.length })}</Text>
       </Card>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginBottom: 20 }}>
-        <StatTile value={count('cleared')} label="Completed" tone="green" onPress={() => app.setTab('clearances')} />
-        <StatTile value={count('pending', 'resubmitted', 'in_progress')} label="Pending" tone="purple" onPress={() => app.setTab('clearances')} />
-        <StatTile value={count('action_required')} label="Action Required" tone="red" onPress={() => app.setTab('clearances')} />
-        <StatTile value={count('not_started')} label="Not Started" tone="gray" onPress={() => app.setTab('clearances')} />
+        <StatTile value={count('cleared')} label={t('completed')} tone="green" onPress={() => app.setTab('clearances')} />
+        <StatTile value={count('pending', 'resubmitted', 'in_progress')} label={t('pending')} tone="purple" onPress={() => app.setTab('clearances')} />
+        <StatTile value={count('action_required')} label={t('actionRequired')} tone="red" onPress={() => app.setTab('clearances')} />
+        <StatTile value={count('not_started')} label={t('notStarted')} tone="gray" onPress={() => app.setTab('clearances')} />
       </View>
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-        <Text style={{ fontSize: 17, fontWeight: '700', color: INK }}>Active Clearances</Text>
-        <TextLink onPress={() => app.setTab('clearances')} color={PURPLE} style={{ fontSize: 15 }}>View All →</TextLink>
+        <Text style={{ fontSize: 17, fontWeight: '700', color: INK }}>{t('activeClearances')}</Text>
+        <TextLink onPress={() => app.setTab('clearances')} color={PURPLE} style={{ fontSize: 15 }}>{t('viewAll')} →</TextLink>
       </View>
-      {active.length === 0 ? <Text style={{ color: MUTED, fontSize: 16 }}>All your clearances are complete. 🎉</Text> : null}
+      {active.length === 0 ? <Text style={{ color: MUTED, fontSize: 16 }}>{t('allComplete')}</Text> : null}
       {active.slice(0, 3).map((item) => <ClearanceRow key={item.id} compact clearance={item} onPress={() => app.openClearance(item)} />)}
     </ScrollView>
   );
@@ -109,6 +113,7 @@ export function HomeScreen({ app }) {
 const FILTERS = [['all', 'All'], ['progress', 'In Progress'], ['done', 'Completed']];
 
 export function ClearancesScreen({ app }) {
+  const { t } = useLanguage();
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -121,32 +126,33 @@ export function ClearancesScreen({ app }) {
     <View style={{ flex: 1 }}>
       <View style={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 }}>
         <BackArrow onPress={() => app.setTab('home')} size={30} color={INK} style={{ width: 44, height: 48, justifyContent: 'center' }} />
-        <Text style={{ flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK }}>My Clearances</Text>
+        <Text style={{ flex: 1, textAlign: 'center', fontSize: 20, fontFamily: 'Inter_800ExtraBold', fontWeight: '800', color: INK }}>{t("My Clearances")}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Search clearances" onPress={() => { setSearching(!searching); setQuery(''); }} style={{ width: 44, height: 48, alignItems: 'flex-end', justifyContent: 'center' }}>
           <Ionicons name={searching ? 'close' : 'search'} size={26} color={PURPLE} />
         </Pressable>
       </View>
       {searching ? (
         <View style={{ marginHorizontal: 18, marginBottom: 8, height: 54, borderRadius: 14, borderWidth: 2, borderColor: '#D2CAF1', paddingHorizontal: 14, justifyContent: 'center' }}>
-          <TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Search clearances" placeholderTextColor="#a4a1bc" style={{ padding: 0, fontSize: 17, color: INK }} />
+          <TextInput autoFocus value={query} onChangeText={setQuery} placeholder={t("Search clearances")} placeholderTextColor="#a4a1bc" style={{ padding: 0, fontSize: 17, color: INK }} />
         </View>
       ) : null}
       <View style={{ flexDirection: 'row', marginHorizontal: 18, marginBottom: 12, backgroundColor: '#f3f0fd', borderRadius: 14, padding: 4 }}>
         {FILTERS.map(([key, label]) => (
           <Pressable key={key} onPress={() => setFilter(key)} style={{ flex: 1, height: 42, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: filter === key ? PURPLE : 'transparent' }}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: filter === key ? 'white' : MUTED }}>{label}</Text>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: filter === key ? 'white' : MUTED }}>{t(label)}</Text>
           </Pressable>
         ))}
       </View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20 }} refreshControl={useRefresh(app)}>
         {list.map((item) => <ClearanceRow key={item.id} clearance={item} onPress={() => app.openClearance(item)} />)}
-        {list.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, marginTop: 40 }}>No clearances found.</Text> : null}
+        {list.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, marginTop: 40 }}>{t("No clearances found.")}</Text> : null}
       </ScrollView>
     </View>
   );
 }
 
 export function ClearedTabScreen({ app }) {
+  const { t } = useLanguage();
   const groups = app.overview.clearances.map((clearance) => ({
     clearance,
     approved: clearance.stages.flatMap((stage) => stage.requirements.filter((requirement) => requirement.status === 'cleared').map((requirement) => ({ stage, requirement }))),
@@ -158,7 +164,7 @@ export function ClearedTabScreen({ app }) {
   }));
   const total = groups.reduce((sum, group) => sum + group.approved.length, 0);
   return <View style={{ flex: 1, backgroundColor: 'white' }}>
-    <TabTitle title="Cleared" onBack={() => app.setTab('home')} />
+    <TabTitle title={t("Cleared")} onBack={() => app.setTab('home')} />
     <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 24 }} refreshControl={useRefresh(app)}>
       {groups.length ? <>
         {groups.map(({ clearance, approved }) => (
@@ -167,16 +173,16 @@ export function ClearedTabScreen({ app }) {
             <Text style={{ fontSize: 13, color: MUTED, marginTop: 4, marginBottom: 6 }}>{approved.length} cleared · {clearance.session}</Text>
             {approved.map(({ stage, requirement }) => <Pressable key={requirement.id} onPress={() => app.go('cleared', { clearanceId: clearance.id, requirementId: requirement.id })} style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderColor: LINE, paddingVertical: 13 }}>
               <Ionicons name="checkmark-circle" size={22} color="#16a34a" />
-              <View style={{ flex: 1, marginLeft: 10 }}><Text style={{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: INK }}>{requirement.name}</Text><Text style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{stage.name}{requirement.submission?.stampedFileId ? ' · Stamped copy ready' : ''}</Text></View>
+              <View style={{ flex: 1, marginLeft: 10 }}><Text style={{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: INK }}>{requirement.name}</Text><Text style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{stage.name}{requirement.submission?.stampedFileId ? t("· Stamped copy ready") : ''}</Text></View>
               <Ionicons name="chevron-forward" size={18} color={MUTED} />
             </Pressable>)}
           </Card>
         ))}
-      </> : <Text style={{ color: MUTED, textAlign: 'center', fontSize: 15, marginTop: 40 }}>Your approved documents will appear here after a clearance officer clears them.</Text>}
+      </> : <Text style={{ color: MUTED, textAlign: 'center', fontSize: 15, marginTop: 40 }}>{t("Your approved documents will appear here after a clearance officer clears them.")}</Text>}
     </ScrollView>
     {groups.length ? <View style={{ padding: 14, paddingTop: 12, borderTopWidth: 1, borderColor: LINE, backgroundColor: 'white' }}>
-      <Text style={{ textAlign: 'center', fontSize: 13, color: MUTED, marginBottom: 8 }}>{total} {total === 1 ? 'document' : 'documents'} cleared</Text>
-      <FolderExport files={files} defaultName="Cleared Documents" token={app.token} title="Download Zip" />
+      <Text style={{ textAlign: 'center', fontSize: 13, color: MUTED, marginBottom: 8 }}>{total} {total === 1 ? t("document") : t("documents")} cleared</Text>
+      <FolderExport files={files} defaultName="Cleared Documents" token={app.token} title={t("Download Zip")} />
     </View> : null}
   </View>;
 }
@@ -187,6 +193,7 @@ const NOTE_ICONS = {
 };
 
 export function NotificationsScreen({ app }) {
+  const { t } = useLanguage();
   const [items, setItems] = useState(null);
   useEffect(() => {
     let live = true;
@@ -199,9 +206,9 @@ export function NotificationsScreen({ app }) {
   }, [app.version]);
   return (
     <View style={{ flex: 1 }}>
-      <TabTitle title="Notifications" onBack={() => app.setTab('home')} />
+      <TabTitle title={t("Notifications")} onBack={() => app.setTab('home')} />
       <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20 }} refreshControl={useRefresh(app)}>
-        {items && items.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, marginTop: 50 }}>You’re all caught up.</Text> : null}
+        {items && items.length === 0 ? <Text style={{ textAlign: 'center', color: MUTED, marginTop: 50 }}>{t("You’re all caught up.")}</Text> : null}
         {(items || []).map((item) => {
           const [icon, color] = NOTE_ICONS[item.type] || NOTE_ICONS.assigned;
           const target = item.clearanceId && app.overview.clearances.find((entry) => entry.id === item.clearanceId);
@@ -223,14 +230,15 @@ export function NotificationsScreen({ app }) {
 }
 
 export function ProfileScreen({ app }) {
+  const { t } = useLanguage();
   const { open: openBugReport } = useBugReport();
   const [signingOut, askSignOut, signOutSheet] = useSignOut(app.signOut);
   const student = app.overview.student;
   const photo = app.overview.clearances.flatMap((item) => item.stages).flatMap((stage) => stage.requirements).find((item) => item.id === 'passport-photo' && item.submission?.fileId && item.submission.mimeType.startsWith('image/'));
-  const rows = [['Clearance ID', student.clearanceId], ['Programme', student.programme], ['Department', student.department], ['Faculty', student.faculty], ['Level', `${student.level} Level`], ['JAMB Reg. No.', student.jamb], ['Matric No.', student.matricNo || 'To be assigned'], ['Email', student.email], ['Phone', student.phone]];
+  const rows = [[t("Clearance ID"), student.clearanceId], [t("Programme"), student.programme], [t("Department"), student.department], [t("Faculty"), student.faculty], [t("Level"), `${student.level} Level`], [t("JAMB Reg. No."), student.jamb], [t("Matric No."), student.matricNo || 'To be assigned'], [t("Email"), student.email], [t("Phone"), student.phone]];
   return (
     <View style={{ flex: 1 }}>
-    <TabTitle title="Profile" onBack={() => app.setTab('home')} />
+    <TabTitle title={t("Profile")} onBack={() => app.setTab('home')} />
     <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 24 }}>
       <View style={{ alignItems: 'center', marginVertical: 12 }}>
         {photo ? <Image source={fileSource(photo.submission.fileId, app.token)} style={{ width: 92, height: 92, borderRadius: 46 }} /> : (
@@ -242,14 +250,14 @@ export function ProfileScreen({ app }) {
       <Card style={{ padding: 0, marginBottom: 16 }}>
         {rows.map(([label, value], index) => (
           <View key={label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 15, borderTopWidth: index ? 1 : 0, borderTopColor: LINE }}>
-            <Text style={{ fontSize: 15, color: MUTED }}>{label}</Text>
+            <Text style={{ fontSize: 15, color: MUTED }}>{t(label)}</Text>
             <Text style={{ fontSize: 15, fontWeight: '600', color: INK, flexShrink: 1, textAlign: 'right', marginLeft: 16 }}>{value}</Text>
           </View>
         ))}
       </Card>
-      {app.overview.clearances.some((item) => item.status === 'completed' && item.completion?.idCard) ? <><SolidButton variant="outline" icon="card-outline" title="Student ID Card" onPress={() => app.go('idcard')} /><View style={{ height: 10 }} /></> : null}
-      <SolidButton variant="outline" icon="bug-outline" title="Report a bug" onPress={openBugReport} /><View style={{ height: 10 }} />
-      <><SolidButton variant="outline" icon="log-out-outline" title="Sign Out" busy={signingOut} onPress={askSignOut} />{signOutSheet}</>
+      {app.overview.clearances.some((item) => item.status === 'completed' && item.completion?.idCard) ? <><SolidButton variant="outline" icon="card-outline" title={t("Student ID Card")} onPress={() => app.go('idcard')} /><View style={{ height: 10 }} /></> : null}
+      <SolidButton variant="outline" icon="bug-outline" title={t("Report a bug")} onPress={openBugReport} /><View style={{ height: 10 }} />
+      <><SolidButton variant="outline" icon="log-out-outline" title={t('signOut')} busy={signingOut} onPress={askSignOut} />{signOutSheet}</>
     </ScrollView>
     </View>
   );
