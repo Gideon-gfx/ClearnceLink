@@ -26,6 +26,9 @@ server/data/
 *.sw?
 
 .env
+*.p8
+*.p8.pem
+.secrets/
 
 # Private keys: never commit these
 *-firebase-adminsdk-*.json

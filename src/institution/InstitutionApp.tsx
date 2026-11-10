@@ -50,7 +50,7 @@ export default function InstitutionApp({ session, onSignOut, onSessionChange = (
     case 'students': body = <StudentsScreen api={api} initialFilter={current.params.filter} onNavigate={go} onBack={() => tab('home')} />; break;
     case 'staff': body = <StaffScreen api={api} onNavigate={go} onBack={() => tab('home')} />; break;
     case 'oversight': body = <OversightScreen api={api} onBack={() => tab('home')} />; break;
-    case 'more': body = <MoreScreen user={session.user} token={session.token} logoUrl={logoUrl} onLogoChanged={() => { setHasLogo(true); setLogoVersion((value) => value + 1); }} onNavigate={go} onSignOut={onSignOut} onBack={() => tab('home')} />; break;
+    case 'more': body = <MoreScreen user={session.user} token={session.token} logoUrl={logoUrl} onLogoChanged={() => { setHasLogo(true); setLogoVersion((value) => value + 1); }} onBillingChange={onSessionChange} onNavigate={go} onSignOut={onSignOut} onBack={() => tab('home')} />; break;
     case 'add-student': body = <AddStudentScreen api={api} onBack={back} onSaved={(item) => go('student-detail', { id: item.id })} />; break;
     case 'add-staff': body = <AddStaffScreen api={api} onBack={back} onSaved={(item) => go('staff-detail', { id: item.id })} />; break;
     case 'import-students': body = <ImportStudentsScreen api={api} onBack={back} onManual={() => go('add-student')} onValidated={(batch) => go('import-results', { batch })} />; break;

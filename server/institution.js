@@ -217,7 +217,7 @@ function createHandler({ data, save, send, readJson, files }) {
   async function template(res, kind, format, acting) {
     const columns = kind === 'student' ? acting ? [...STUDENT_COLUMNS, 'Matriculation Number'] : STUDENT_COLUMNS : STAFF_COLUMNS;
     if (format === 'csv') {
-      res.writeHead(200, { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${kind}-import-template.csv"`, 'Access-Control-Allow-Origin': '*' });
+      res.writeHead(200, { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${kind}-import-template.csv"` });
       return res.end(`${columns.join(',')}\r\n`);
     }
     const workbook = new ExcelJS.Workbook();
@@ -226,7 +226,7 @@ function createHandler({ data, save, send, readJson, files }) {
     sheet.getRow(1).eachCell((cell) => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF5A17C9' } }; });
     columns.forEach((_, index) => { sheet.getColumn(index + 1).width = 24; });
     const buffer = await workbook.xlsx.writeBuffer();
-    res.writeHead(200, { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="${kind}-import-template.xlsx"`, 'Access-Control-Allow-Origin': '*' });
+    res.writeHead(200, { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="${kind}-import-template.xlsx"` });
     return res.end(Buffer.from(buffer));
   }
   // `acting` is { institution, staff }: a staff member adding their own students. They get only the student routes below,
@@ -248,7 +248,7 @@ function createHandler({ data, save, send, readJson, files }) {
       const logo = user.attachments?.logo;
       const content = logo && await files.get(logo.fileId);
       if (!content) { send(res, 404, { error: 'No institution logo uploaded.' }); return true; }
-      res.writeHead(200, { 'Content-Type': logo.mimeType, 'Cache-Control': 'private, max-age=300' });
+      res.writeHead(200, { 'Content-Type': logo.mimeType, 'Cache-Control': 'no-store' });
       res.end(content); return true;
     }
     if (route === '/api/institution/logo' && req.method === 'PUT') {
@@ -275,7 +275,7 @@ function createHandler({ data, save, send, readJson, files }) {
     if (route === '/api/institution/stamp/image' && req.method === 'GET') {
       const content = user.stamp?.fileId && await files.get(user.stamp.fileId);
       if (!content) { send(res, 404, { error: 'No stamp uploaded.' }); return true; }
-      res.writeHead(200, { 'Content-Type': user.stamp.mimeType, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });
+      res.writeHead(200, { 'Content-Type': user.stamp.mimeType, 'Cache-Control': 'no-store' });
       res.end(content); return true;
     }
     if (route === '/api/institution/stamp/placement' && req.method === 'PUT') {
@@ -333,7 +333,7 @@ function createHandler({ data, save, send, readJson, files }) {
         if (part === 'idcard' && req.method === 'GET') {
           const content = student.idCard?.fileId && await files.get(student.idCard.fileId);
           if (!content) { send(res, 404, { error: 'No ID card uploaded.' }); return true; }
-          res.writeHead(200, { 'Content-Type': student.idCard.mimeType, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' }); res.end(content); return true;
+          res.writeHead(200, { 'Content-Type': student.idCard.mimeType, 'Cache-Control': 'no-store' }); res.end(content); return true;
         }
         if (part === 'idcard' && req.method === 'PUT') {
           const file = await readFileInput(['image/png', 'image/jpeg', 'application/pdf']);
@@ -371,15 +371,21 @@ function createHandler({ data, save, send, readJson, files }) {
 
     if (route === '/api/institution/overview' && req.method === 'GET') {
       const students = ownStudents(user), staff = ownStaff(user);
-      const submissions = (data.submissions || []).filter((item) => students.some((student) => student.id === item.studentId));
+      const studentIds = new Set(students.map((student) => student.id));
+      const submissions = (data.submissions || []).filter((item) => studentIds.has(item.studentId));
       send(res, 200, { institution: { name: user.institutionName, status: user.status, prefix: prefix(user), session: user.session || '2026/2027' }, stats: { students: students.length, staff: staff.length, officers: staff.filter((item) => item.role === 'officer' && !item.disabled).length, fullyCleared: students.filter((item) => item.status === 'cleared').length, pendingReviews: submissions.filter((item) => ['pending', 'resubmitted'].includes(item.status)).length, actionRequired: submissions.filter((item) => item.status === 'rejected').length }, recent: data.audit.filter((item) => item.institutionId === user.id).slice(0, 5) });
       return true;
     }
     if (kind && !id && req.method === 'GET') {
       const search = clean(url.searchParams.get('search')).toLowerCase();
       const status = clean(url.searchParams.get('status'));
-      const people = (kind === 'student' ? ownStudents(user) : ownStaff(user)).filter((item) => (!acting || item.addedBy === acting.staff.id) && (!search || [item.name, item.email, item.department, item.jamb, item.matricNo, item.staffId, item.clearanceId, item.accessId].some((v) => clean(v).toLowerCase().includes(search))) && (!status || status === 'all' || item.status === status));
-      send(res, 200, { items: people }); return true;
+      const people = (kind === 'student' ? ownStudents(user) : ownStaff(user)).filter((item) => (!acting || item.addedBy === acting.staff.id) && (!search || [item.name, item.email, item.department, item.jamb, item.matricNo, item.staffId, item.clearanceId, item.accessId].some((v) => clean(v).toLowerCase().includes(search))) && (!status || status === 'all' || (status === 'active' ? !item.disabled : status === 'inactive' ? item.disabled : item.status === status)));
+      if (url.searchParams.has('limit')) {
+        const limit = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get('limit'), 10) || 50));
+        const offset = Math.max(0, Number.parseInt(url.searchParams.get('offset'), 10) || 0);
+        send(res, 200, { items: people.slice(offset, offset + limit), total: people.length, hasMore: offset + limit < people.length });
+      } else send(res, 200, { items: people });
+      return true;
     }
     if (kind && !id && req.method === 'POST') {
       const input = await readJson(req);
@@ -522,7 +528,8 @@ function createHandler({ data, save, send, readJson, files }) {
     if (route === '/api/institution/notifications/seen' && req.method === 'POST') { user.notificationsSeenAt = now(); save(); send(res, 200, { unread: 0 }); return true; }
     if (route === '/api/institution/oversight' && req.method === 'GET') {
       const students = ownStudents(user);
-      const submissions = (data.submissions || []).filter((item) => students.some((student) => student.id === item.studentId));
+      const studentIds = new Set(students.map((student) => student.id));
+      const submissions = (data.submissions || []).filter((item) => studentIds.has(item.studentId));
       send(res, 200, { pending: submissions.filter((item) => ['pending', 'resubmitted'].includes(item.status)).length, cleared: submissions.filter((item) => item.status === 'cleared').length, rejected: submissions.filter((item) => item.status === 'rejected').length, recent: data.audit.filter((item) => item.institutionId === user.id).slice(0, 60), clearances: (data.clearances || []).filter((item) => item.institutionId === user.id) }); return true;
     }
     if (route === '/api/institution/tuition' && req.method === 'GET') { send(res, 200, { tuition: data.tuition.find((item) => item.institutionId === user.id) || { mode: 'full', total: '', instalments: [] } }); return true; }

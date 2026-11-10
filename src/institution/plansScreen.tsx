@@ -13,12 +13,13 @@ export const PLAN_THEMES = {
   standard: { color: '#B7791F', tint: '#FFF6DC', icon: 'star-outline' },
   pro: { color: '#0F9D6B', tint: '#E4F8EF', icon: 'diamond-outline' },
   enterprise: { color: '#7A2BD9', tint: '#F1E6FF', icon: 'sparkles', gradient: ['#4B12A8', '#8A35EE', '#C25BFF'] },
+  'student-pay': { color: '#6A19C9', tint: '#F3EAFF', icon: 'people-outline' },
 };
 export const planTheme = (plan) => PLAN_THEMES[plan] || { color: C.purple, tint: '#F8F5FF', icon: 'ribbon-outline' };
 
 // "Free Trial · 5 days left", "Standard · 23 days left", "Standard · expired"
 export function planSummary(user) {
-  const name = user?.plan === 'trial' ? 'Free Trial' : user?.plan ? user.plan.charAt(0).toUpperCase() + user.plan.slice(1) : 'No plan';
+  const name = user?.plan === 'trial' ? 'Free Trial' : user?.plan === 'student-pay' ? 'Students Pay' : user?.plan ? user.plan.charAt(0).toUpperCase() + user.plan.slice(1) : 'No plan';
   if (!user?.plan) return name;
   if (user.expired) return `${name} · expired`;
   const days = user.expiresAt ? Math.max(0, Math.ceil((Date.parse(user.expiresAt) - Date.now()) / 86400000)) : null;

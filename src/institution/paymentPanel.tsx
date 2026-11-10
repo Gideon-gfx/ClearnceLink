@@ -141,6 +141,10 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
     const result = await apiRequest('/api/institution-payment/trial', {}, token);
     setSuccess({ user: result.user, trial: true });
   });
+  const chooseStudentPay = () => guard(async () => {
+    const result = await apiRequest('/api/institution-payment/student-pay', {}, token);
+    setSuccess({ user: result.user, studentPay: true, studentPayUsd: result.user?.studentActivationUsd || config?.studentPayUsd || 1 });
+  });
 
   const contactSales = () => Linking.openURL(`mailto:${config?.enterprise?.email || ''}?subject=ClearanceLink%20Enterprise`);
 
@@ -155,7 +159,8 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
   let footer = null;
   if (!success && config && !selected) footer = <FooterButton disabled icon="card-outline" title={t("Choose a plan to continue")} />;
   if (!success && selected) {
-    if (starterTrial) {
+    if (selected === 'student-pay') footer = <FooterButton icon="people-outline" title="Activate with student payments · $0 today" busy={busy} onPress={chooseStudentPay} />;
+    else if (starterTrial) {
       footer = (
         <View>
           <FooterButton icon="rocket-outline" title={`Start ${config.trial.days}-day free trial`} busy={busy && !checkout} onPress={startTrial} />
@@ -171,9 +176,9 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
     const until = days ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
     const rows = [
       [t("Institution"), success.user?.institutionName],
-      [t("Plan"), success.trial ? `Starter · ${config?.trial?.days}-day free trial` : success.planName],
-      [success.trial ? 'Cost today' : 'Amount paid', success.trial ? 'Free' : success.amount],
-      [success.trial ? 'Trial ends' : 'Valid until', until],
+      [t("Plan"), success.studentPay ? 'Students pay on activation' : success.trial ? `Starter · ${config?.trial?.days}-day free trial` : success.planName],
+      [success.trial || success.studentPay ? 'Cost today' : 'Amount paid', success.trial || success.studentPay ? 'Free' : success.amount],
+      [success.trial ? 'Trial ends' : 'Valid until', success.studentPay ? null : until],
       ...(success.trial && config?.plans?.[0] ? [[t("After the trial"), `${money(config.plans[0].price, config.currency)} per month, only if you subscribe`]] : []),
     ].filter(([, value]) => value);
     const dots = [['#f59e0b', 24, 34], ['#8b5cf6', 60, 12], ['#22c55e', 110, 20], ['#ec4899', 10, 88], ['#3b82f6', 132, 84], ['#f59e0b', 118, 150], ['#8b5cf6', 6, 148]];
@@ -190,9 +195,9 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
               </View>
             </View>
           </View>
-          <Text style={{ fontSize: 26, fontWeight: '800', color: INK, textAlign: 'center' }}>{success.trial ? t("Your free trial has started!") : t("Payment successful!")}</Text>
+          <Text style={{ fontSize: 26, fontWeight: '800', color: INK, textAlign: 'center' }}>{success.studentPay ? 'Student payments enabled!' : success.trial ? t("Your free trial has started!") : t("Payment successful!")}</Text>
           <Text style={{ marginTop: 10, fontSize: 14, lineHeight: 21, color: MUTED, textAlign: 'center', maxWidth: 320 }}>
-            {success.trial ? `You have Starter free for ${config?.trial?.days} days: up to ${Number(config?.trial?.students).toLocaleString('en-US')} students, unlimited staff, every feature. We will email you a day before it ends. Nothing is charged automatically.` : t("Thank you. Your institution is now active.")} {signedIn ? t("You can start using ClearanceLink now.") : t("Sign in with your work email and password to get started.")}
+            {success.studentPay ? `Your institution is active at no charge. Students who have not activated their accounts pay the equivalent of $${success.studentPayUsd} after verifying their Clearance ID and before creating a password.` : success.trial ? `You have Starter free for ${config?.trial?.days} days: up to ${Number(config?.trial?.students).toLocaleString('en-US')} students, unlimited staff, every feature. We will email you a day before it ends. Nothing is charged automatically.` : t("Thank you. Your institution is now active.")} {signedIn ? t("You can start using ClearanceLink now.") : t("Sign in with your work email and password to get started.")}
           </Text>
           {rows.length ? (
             <View style={{ alignSelf: 'stretch', marginTop: 26, borderRadius: 16, borderWidth: 1, borderColor: '#e6e3f7', backgroundColor: '#ffffff', shadowColor: '#3b1a8a', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}>
@@ -253,6 +258,10 @@ export default function PaymentPanel({ token, onDone, signedIn = false, renewing
           </PlanCard>
         );
       })}
+
+      {config?.studentPayAvailable ? <PlanCard on={selected === 'student-pay'} open={selected === 'student-pay'} onPress={() => toggle('student-pay')} title="Students pay" badge={{ text: 'NO INSTITUTION CHARGE', bg: '#dcfce7', color: '#15803d' }} subtitle="Students pay once when activating their account" price="$0" priceNote="for your institution">
+        <Details heading="How student payment works" lines={['Your institution is activated without a subscription payment.', `After entering their Clearance ID and verifying the email code, students who have not activated yet pay the equivalent of $${config.studentPayUsd} before creating a password.`, 'The final checkout currency and amount are shown before payment.', ...(config.plan ? ['Switching takes effect immediately. Any unused time on your current plan is not refunded.'] : [])]} />
+      </PlanCard> : null}
 
       {config ? (
         <PlanCard

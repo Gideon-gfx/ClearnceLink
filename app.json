@@ -13,7 +13,10 @@
       "googleServicesFile": "./google-services.json"
     },
     "ios": {
-      "bundleIdentifier": "com.gideongfx.clearancelink"
+      "bundleIdentifier": "com.gideongfx.clearancelink",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "web": {
       "bundler": "metro"

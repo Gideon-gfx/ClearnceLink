@@ -118,7 +118,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       if (staff.userId) return send(res, 409, { error: 'This account is already activated.' }), true;
       const email = staff.email.toLowerCase();
       if (data.users.some((item) => item.email === email && item.role === 'staff')) return send(res, 409, { error: 'An account with this email already exists.' }), true;
-      const user = { id: crypto.randomUUID(), role: 'staff', status: 'active', email, passwordHash: hashPassword(input.password), name: staff.name, institutionName: staff.institutionName, staffId: staff.id, createdAt: now() };
+      const user = { id: crypto.randomUUID(), role: 'staff', status: 'active', email, passwordHash: await hashPassword(input.password), name: staff.name, institutionName: staff.institutionName, staffId: staff.id, createdAt: now() };
       data.users.push(user);
       staff.userId = user.id;
       data.staffActivations = data.staffActivations.filter((item) => item !== activation);
@@ -151,7 +151,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
     if (route === '/api/staff/stamp/image' && req.method === 'GET') {
       const content = staff.stamp?.fileId && await files.get(staff.stamp.fileId);
       if (!content) return send(res, 404, { error: 'No stamp uploaded.' }), true;
-      res.writeHead(200, { 'Content-Type': staff.stamp.mimeType, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });
+      res.writeHead(200, { 'Content-Type': staff.stamp.mimeType, 'Cache-Control': 'no-store' });
       res.end(content);
       return true;
     }
@@ -301,7 +301,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       const logo = institution?.attachments?.logo;
       const content = logo && await files.get(logo.fileId);
       if (!content) { send(res, 404, { error: 'No institution logo uploaded.' }); return true; }
-      res.writeHead(200, { 'Content-Type': logo.mimeType, 'Cache-Control': 'private, max-age=300' });
+      res.writeHead(200, { 'Content-Type': logo.mimeType, 'Cache-Control': 'no-store' });
       res.end(content); return true;
     }
     if (route === '/api/staff/students' && req.method === 'GET') {
@@ -344,7 +344,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       const content = await files.get(fileMatch[1]);
       if (!content) return send(res, 404, { error: 'File not found.' }), true;
       const downloadName = stamped ? `${submission.fileName.replace(/\.[^.]+$/, '')}-stamped.pdf` : submission.fileName;
-      res.writeHead(200, { 'Content-Type': stamped ? 'application/pdf' : submission.mimeType, 'Content-Disposition': `inline; filename="${downloadName.replace(/"/g, '')}"`, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'private, max-age=300' });
+      res.writeHead(200, { 'Content-Type': stamped ? 'application/pdf' : submission.mimeType, 'Content-Disposition': `inline; filename="${downloadName.replace(/"/g, '')}"`, 'Cache-Control': 'no-store' });
       res.end(content);
       return true;
     }

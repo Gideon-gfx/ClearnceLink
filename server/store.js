@@ -40,7 +40,17 @@ function fileStore() {
     get: async (id) => readLegacyFile(id),
     remove: async (id) => { fs.rmSync(path.join(uploadsDir, id), { force: true }); },
   };
-  return { backend: 'file', data, save, files, close: async () => {} };
+  const rateBuckets = new Map();
+  const rateLimit = async (scope, subject, limit, windowMs) => {
+    const now = Date.now();
+    const bucket = Math.floor(now / windowMs);
+    const key = crypto.createHash('sha256').update(`${scope}:${subject}:${bucket}`).digest('hex');
+    const count = (rateBuckets.get(key) || 0) + 1;
+    rateBuckets.set(key, count);
+    if (rateBuckets.size > 10000) rateBuckets.clear();
+    return { allowed: count <= limit, retryAfter: Math.ceil(((bucket + 1) * windowMs - now) / 1000) };
+  };
+  return { backend: 'file', data, save, files, rateLimit, close: async () => {} };
 }
 
 async function mongoStore(uri) {
@@ -49,6 +59,15 @@ async function mongoStore(uri) {
   await client.connect();
   const db = client.db(process.env.MONGODB_DB || 'clearancelink');
   const bucket = new GridFSBucket(db, { bucketName: 'files' });
+  const limits = db.collection('_rate_limits');
+  await limits.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+  const rateLimit = async (scope, subject, limit, windowMs) => {
+    const now = Date.now();
+    const window = Math.floor(now / windowMs);
+    const key = crypto.createHash('sha256').update(`${scope}:${subject}:${window}`).digest('hex');
+    const entry = await limits.findOneAndUpdate({ _id: key }, { $inc: { count: 1 }, $setOnInsert: { expiresAt: new Date((window + 1) * windowMs + 60000) } }, { upsert: true, returnDocument: 'after' });
+    return { allowed: entry.count <= limit, retryAfter: Math.ceil(((window + 1) * windowMs - now) / 1000) };
+  };
 
   const files = {
     put: (id, buffer) => new Promise((resolve, reject) => {
@@ -78,7 +97,7 @@ async function mongoStore(uri) {
 
   const collectionNames = (await db.listCollections({}, { nameOnly: true }).toArray())
     .map((item) => item.name)
-    .filter((name) => !name.startsWith('system.') && !name.startsWith('files.') && name !== '_meta');
+    .filter((name) => !name.startsWith('system.') && !name.startsWith('files.') && name !== '_meta' && name !== '_rate_limits');
   const metaDocs = await db.collection('_meta').find().toArray();
 
   if (!collectionNames.length && !metaDocs.length && fs.existsSync(dataFile)) {
@@ -159,11 +178,12 @@ async function mongoStore(uri) {
   };
 
   await queueFlush(); // writes the imported data on first run; a no-op afterwards
-  return { backend: 'mongodb', data, save, files, close };
+  return { backend: 'mongodb', data, save, files, rateLimit, close };
 }
 
 async function openStore() {
   const uri = String(process.env.MONGODB_URI || '').trim();
+  if (process.env.NODE_ENV === 'production' && !uri) throw new Error('MONGODB_URI is required in production; local JSON storage is not safe for a public deployment.');
   const store = uri ? await mongoStore(uri) : fileStore();
   // With CLOUDINARY_URL set, new uploads go to Cloudinary (private); older files are still read from where they are.
   if (String(process.env.CLOUDINARY_URL || '').trim()) {

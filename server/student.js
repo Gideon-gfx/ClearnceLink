@@ -189,7 +189,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
   const core = { visibleTo, latest, notify, audit, buildClearance, studentProfile, checkCompletion, describeSubmission, stampSubmission, sha, now, hooks: { submission: [] } };
 
   async function handle(req, res, route) {
-    if (!route.startsWith('/api/student') && !route.startsWith('/api/files/') && !route.startsWith('/api/dev/')) return false;
+    if (!route.startsWith('/api/student/') && !route.startsWith('/api/files/') && !route.startsWith('/api/dev/')) return false;
 
     // ---- Activation (public) ----
     if (route === '/api/student/access' && req.method === 'POST') {
@@ -224,9 +224,10 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       data.otps = data.otps.filter((item) => item !== otp);
       const activationToken = crypto.randomBytes(24).toString('hex');
       data.activations = data.activations.filter((item) => item.studentId !== student.id);
-      data.activations.push({ studentId: student.id, tokenHash: sha(activationToken), expiresAt: Date.now() + 15 * 60_000 });
+      data.activations.push({ studentId: student.id, tokenHash: sha(activationToken), expiresAt: Date.now() + 60 * 60_000 });
       save();
-      send(res, 200, { activationToken });
+      const institution = data.users.find((item) => item.id === student.institutionId && item.role === 'institution');
+      send(res, 200, { activationToken, paymentRequired: institution?.plan === 'student-pay' && !student.activationPaidAt });
       return true;
     }
     if (route === '/api/student/activate' && req.method === 'POST') {
@@ -234,11 +235,13 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       const student = data.students.find((item) => item.clearanceId === String(input.clearanceId || '').trim().toUpperCase());
       const activation = student && data.activations.find((item) => item.studentId === student.id && item.tokenHash === sha(input.activationToken) && item.expiresAt > Date.now());
       if (!activation) return send(res, 400, { error: 'Your verification expired. Please start again.' }), true;
+      const institution = data.users.find((item) => item.id === student.institutionId && item.role === 'institution');
+      if (institution?.plan === 'student-pay' && !student.activationPaidAt) return send(res, 402, { error: 'Complete your activation payment before creating a password.' }), true;
       if (!PASSWORD_RULE.test(String(input.password || ''))) return send(res, 400, { error: 'Password needs 8 characters, an uppercase letter, a number and a symbol.' }), true;
       if (student.userId) return send(res, 409, { error: 'This account is already activated.' }), true;
       const email = student.email.toLowerCase();
       if (data.users.some((item) => item.email === email && item.role === 'student')) return send(res, 409, { error: 'An account with this email already exists.' }), true;
-      const user = { id: crypto.randomUUID(), role: 'student', status: 'active', email, passwordHash: hashPassword(input.password), name: student.name, institutionName: student.institutionName, studentId: student.id, createdAt: now() };
+      const user = { id: crypto.randomUUID(), role: 'student', status: 'active', email, passwordHash: await hashPassword(input.password), name: student.name, institutionName: student.institutionName, studentId: student.id, createdAt: now() };
       data.users.push(user);
       student.userId = user.id;
       data.activations = data.activations.filter((item) => item !== activation);
@@ -260,7 +263,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       const logo = institution?.attachments?.logo;
       const content = logo && await files.get(logo.fileId);
       if (!content) return send(res, 404, { error: 'No institution logo uploaded.' }), true;
-      res.writeHead(200, { 'Content-Type': logo.mimeType, 'Cache-Control': 'private, max-age=300' });
+      res.writeHead(200, { 'Content-Type': logo.mimeType, 'Cache-Control': 'no-store' });
       res.end(content); return true;
     }
     if (route === '/api/student/overview' && req.method === 'GET') {
@@ -314,7 +317,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       if (official) {
         const bytes = await files.get(fileMatch[1]);
         if (!bytes) return send(res, 404, { error: 'File not found.' }), true;
-        res.writeHead(200, { 'Content-Type': official.mimeType, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'private, max-age=300' });
+        res.writeHead(200, { 'Content-Type': official.mimeType, 'Cache-Control': 'no-store' });
         res.end(bytes);
         return true;
       }
@@ -323,7 +326,7 @@ function createHandler({ data, save, send, readJson, hashPassword, publicUser, f
       const stamped = submission.stampedFileId === fileMatch[1];
       const content = await files.get(fileMatch[1]);
       if (!content) return send(res, 404, { error: 'File not found.' }), true;
-      res.writeHead(200, { 'Content-Type': stamped ? 'application/pdf' : submission.mimeType, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'private, max-age=300' });
+      res.writeHead(200, { 'Content-Type': stamped ? 'application/pdf' : submission.mimeType, 'Cache-Control': 'no-store' });
       res.end(content);
       return true;
     }

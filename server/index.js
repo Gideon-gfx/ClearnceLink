@@ -2,37 +2,74 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { promisify } = require('node:util');
 const { sendOtpEmail, sendBugReportEmail } = require('./mailer');
 const { expiryOf, isExpired } = require('./subscription');
 const { configurePush, registerPushToken, removePushToken } = require('./push');
 
 const { openStore } = require('./store');
 
-const port = Number(process.env.API_PORT || 4000);
+const port = Number(process.env.PORT || process.env.API_PORT || 4000);
+const scrypt = promisify(crypto.scrypt);
+const production = process.env.NODE_ENV === 'production';
+const allowedOrigins = new Set(String(process.env.CORS_ALLOWED_ORIGINS || (production ? '' : 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:19006,http://127.0.0.1:19006,http://localhost:8081')).split(',').map((origin) => origin.trim()).filter(Boolean));
+const maxInFlight = Math.max(10, Number(process.env.MAX_INFLIGHT_REQUESTS) || 250);
+const maxRequestsPerMinute = Math.max(100, Number(process.env.MAX_REQUESTS_PER_MINUTE) || 1200);
+const generalRates = new Map();
+let inFlight = 0;
 // Filled in by main() once the store (MongoDB, or the JSON file fallback) has loaded.
 let data;
 let save = () => {};
 let files;
 function send(res, status, body) {
-  res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Platform-Key', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' });
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(body));
 }
-function normalizeEmail(value) { return String(value || '').trim().toLowerCase(); }
-function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
-  return `${salt}:${crypto.scryptSync(password, salt, 64).toString('hex')}`;
+function clientAddress(req) {
+  const forwarded = process.env.TRUST_PROXY === '1' ? String(req.headers['x-forwarded-for'] || '').split(',').at(-1)?.trim() : '';
+  return forwarded || req.socket.remoteAddress || 'unknown';
 }
-function verifyPassword(password, stored) {
-  if (!stored) return false;
+function applySecurityHeaders(req, res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Vary', 'Origin');
+  if (production) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Platform-Key');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Max-Age', '600');
+  }
+  return !origin || allowedOrigins.has(origin);
+}
+function normalizeEmail(value) { return String(value || '').trim().toLowerCase(); }
+async function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  if (String(password).length > 256) throw new Error('Password is too long.');
+  return `${salt}:${(await scrypt(password, salt, 64)).toString('hex')}`;
+}
+async function verifyPassword(password, stored) {
+  if (!stored || String(password).length > 256) return false;
   const [salt, digest] = stored.split(':');
+  if (!/^[\da-f]{32}$/i.test(salt) || !/^[\da-f]{128}$/i.test(digest)) return false;
   const actual = Buffer.from(digest, 'hex');
-  const candidate = crypto.scryptSync(password, salt, actual.length);
+  const candidate = await scrypt(password, salt, actual.length);
   return crypto.timingSafeEqual(actual, candidate);
 }
 function publicUser(user) {
-  const subscription = user.role === 'institution' ? { plan: user.plan || null, expiresAt: expiryOf(user), expired: isExpired(user) } : {};
+  const subscription = user.role === 'institution' ? { plan: user.plan || null, expiresAt: expiryOf(user), expired: isExpired(user), studentActivationUsd: user.plan === 'student-pay' ? (user.studentActivationUsd === 2 || String(user.country || '').trim().toLowerCase() !== 'nigeria' ? 2 : 1) : null } : {};
   return { id: user.id, role: user.role, name: user.name, email: user.email, status: user.status, institutionName: user.institutionName, hasLogo: Boolean(user.attachments?.logo), ...subscription };
 }
 async function readJson(req, limit = 100_000) {
+  if (req._jsonBody !== undefined) {
+    if (req._jsonBytes > limit) throw new Error('Request is too large.');
+    return req._jsonBody;
+  }
+  const declared = Number(req.headers['content-length']);
+  if (Number.isFinite(declared) && declared > limit) throw new Error('Request is too large.');
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
@@ -40,7 +77,9 @@ async function readJson(req, limit = 100_000) {
     if (size > limit) throw new Error('Request is too large.');
     chunks.push(chunk);
   }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+  req._jsonBytes = size;
+  req._jsonBody = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+  return req._jsonBody;
 }
 
 async function main() {
@@ -54,15 +93,61 @@ const handlePayments = require('./payments').createHandler({ data, save, send, r
 const handleStaff = require('./staff').createHandler({ data, save, send, readJson, hashPassword, publicUser, files, studentCore: handleStudent.core, manageStudents: handleInstitution });
 
 require('./reminders').start({ data, save });
-const bugReportTimes = new Map();
+
+const sensitiveRoutes = {
+  '/api/auth/login': { ip: 600, actor: 12, field: 'email' },
+  '/api/auth/institutions/otp': { ip: 120, actor: 5, field: 'email' },
+  '/api/auth/password/forgot': { ip: 120, actor: 5, field: 'email' },
+  '/api/auth/password/verify': { ip: 300, actor: 12, field: 'email' },
+  '/api/auth/password/reset': { ip: 120, actor: 10, field: 'email' },
+  '/api/student/access': { ip: 120, actor: 5, field: 'clearanceId' },
+  '/api/student/verify': { ip: 300, actor: 12, field: 'clearanceId' },
+  '/api/staff/access': { ip: 120, actor: 5, field: 'accessId' },
+  '/api/staff/verify': { ip: 300, actor: 12, field: 'accessId' },
+  '/api/student-payment/init': { ip: 120, actor: 10, field: 'clearanceId' },
+  '/api/auth/institutions/register': { ip: 20 },
+  '/api/bug-reports': { ip: 5, windowMs: 60 * 60_000 },
+};
+async function checkSensitiveLimit(req, res, route, address) {
+  const rule = sensitiveRoutes[route];
+  if (!rule || req.method !== 'POST') return true;
+  const windowMs = rule.windowMs || 10 * 60_000;
+  const ipResult = await store.rateLimit(`ip:${route}`, address, rule.ip, windowMs);
+  if (!ipResult.allowed) { res.setHeader('Retry-After', ipResult.retryAfter); send(res, 429, { error: 'Too many requests. Please try again later.' }); return false; }
+  if (rule.field) {
+    const input = await readJson(req);
+    const subject = String(input[rule.field] || '').trim().toLowerCase().slice(0, 256);
+    if (subject) {
+      const actorResult = await store.rateLimit(`actor:${route}`, subject, rule.actor, windowMs);
+      if (!actorResult.allowed) { res.setHeader('Retry-After', actorResult.retryAfter); send(res, 429, { error: 'Too many attempts for this account. Please try again later.' }); return false; }
+    }
+  }
+  return true;
+}
 
 for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { store.close().finally(() => process.exit(0)); });
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer({ maxHeaderSize: 8192 }, async (req, res) => {
+  if (!applySecurityHeaders(req, res)) return send(res, 403, { error: 'Origin is not allowed.' });
   if (req.method === 'OPTIONS') return send(res, 204, {});
-  const route = new URL(req.url, 'http://localhost').pathname;
+  let route;
+  try { route = new URL(req.url, 'http://localhost').pathname; }
+  catch { return send(res, 400, { error: 'Invalid request URL.' }); }
   if (route === '/api/health' && req.method === 'GET') return send(res, 200, { ok: true });
+  if (inFlight >= maxInFlight) { res.setHeader('Retry-After', '1'); return send(res, 503, { error: 'Server is busy. Please try again shortly.' }); }
+  inFlight += 1;
+  res.once('close', () => { inFlight -= 1; });
   try {
+    const address = clientAddress(req);
+    if (route !== '/api/paystack/webhook') {
+      const minute = Math.floor(Date.now() / 60_000);
+      const key = `${address}:${minute}`;
+      const count = (generalRates.get(key) || 0) + 1;
+      generalRates.set(key, count);
+      if (generalRates.size > 100_000) generalRates.clear();
+      if (count > maxRequestsPerMinute) { res.setHeader('Retry-After', String(Math.ceil((60_000 - Date.now() % 60_000) / 1000))); return send(res, 429, { error: 'Too many requests. Please try again shortly.' }); }
+    }
+    if (!await checkSensitiveLimit(req, res, route, address)) return;
     if (route === '/api/push-tokens' && ['POST', 'DELETE'].includes(req.method)) {
       const token = String(req.headers.authorization || '').replace(/^Bearer /, '');
       const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -79,10 +164,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
     if (route === '/api/bug-reports' && req.method === 'POST') {
-      const address = String(req.socket.remoteAddress || 'unknown');
       const current = Date.now();
-      const recent = (bugReportTimes.get(address) || []).filter((time) => current - time < 60 * 60 * 1000);
-      if (recent.length >= 5) return send(res, 429, { error: 'Too many reports. Please try again later.' });
       const input = await readJson(req, 5_000);
       const description = String(input.description || '').trim();
       if (description.length < 10 || description.length > 2000) return send(res, 400, { error: 'Describe the issue in 10 to 2,000 characters.' });
@@ -94,12 +176,11 @@ const server = http.createServer(async (req, res) => {
       data.bugReports ||= [];
       data.bugReports.push(report);
       save();
-      bugReportTimes.set(address, [...recent, current]);
       sendBugReportEmail(report).then(() => { report.emailedAt = new Date().toISOString(); save(); }).catch((error) => console.error(`Bug report ${report.id} email failed: ${error.message}`));
       return send(res, 201, { id: report.id, message: 'Bug report received.' });
     }
     // Development only: stands in for the platform's verification step so a new institution account can be tested.
-    if (route === '/api/dev/verify-institution' && req.method === 'POST' && process.env.NODE_ENV !== 'production') {
+    if (route === '/api/dev/verify-institution' && req.method === 'POST' && !production && process.env.ALLOW_DEV_VERIFY === '1') {
       const input = await readJson(req);
       const account = data.users.find((item) => item.role === 'institution' && item.email === normalizeEmail(input.email));
       if (!account) return send(res, 404, { error: 'No institution account with that email.' });
@@ -167,7 +248,7 @@ const server = http.createServer(async (req, res) => {
       const user = {
         // "unpaid" until the registration payment is confirmed; that payment is what activates the account.
         id: crypto.randomUUID(), role: 'institution', status: 'unpaid', email,
-        passwordHash: hashPassword(input.password), name: String(input.adminName).trim(),
+        passwordHash: await hashPassword(input.password), name: String(input.adminName).trim(),
         institutionName: String(input.institutionName).trim(), institutionType: String(input.institutionType).trim(),
         country: String(input.country).trim(), state: String(input.state).trim(), city: String(input.city).trim(),
         address: String(input.address).trim(), officialEmail: normalizeEmail(input.officialEmail),
@@ -185,7 +266,7 @@ const server = http.createServer(async (req, res) => {
     if (route === '/api/auth/login' && req.method === 'POST') {
       const input = await readJson(req);
       const user = data.users.find((item) => item.email === normalizeEmail(input.email) && item.role === input.role);
-      if (!user || !verifyPassword(String(input.password || ''), user.passwordHash)) return send(res, 401, { error: 'Email or password is incorrect.' });
+      if (!user || !await verifyPassword(String(input.password || ''), user.passwordHash)) return send(res, 401, { error: 'Email or password is incorrect.' });
       if (user.role === 'staff' && data.staff?.find((item) => item.id === user.staffId)?.disabled) return send(res, 403, { error: 'This staff account is disabled.' });
       if (user.role === 'student' && data.students?.find((item) => item.id === user.studentId)?.disabled) return send(res, 403, { error: 'This student account is disabled.' });
       const token = crypto.randomBytes(32).toString('hex');
@@ -246,7 +327,7 @@ const server = http.createServer(async (req, res) => {
       const reset = user && data.resets.find((item) => item.userId === user.id && item.tokenHash === tokenHash && item.tokenExpiresAt > Date.now());
       if (!reset) return send(res, 400, { error: 'Your verification has expired. Please request a new code.' });
       if (!/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(String(input.password || ''))) return send(res, 400, { error: 'Password needs 8 characters, an uppercase letter, a number and a symbol.' });
-      user.passwordHash = hashPassword(input.password);
+      user.passwordHash = await hashPassword(input.password);
       data.resets = data.resets.filter((item) => item.userId !== user.id);
       data.sessions = data.sessions.filter((item) => item.userId !== user.id);
       save();
@@ -255,10 +336,15 @@ const server = http.createServer(async (req, res) => {
     return send(res, 404, { error: 'Not found.' });
   } catch (error) {
     // The app only sees a generic message for unexpected failures, so record the real reason here.
-    if (!(error instanceof SyntaxError) && !/Request is too large|spreadsheet|Select a|Import at most|empty/.test(error.message)) console.error(`Request failed: ${req.method} ${route}\n`, error.stack || error);
-    return send(res, error instanceof SyntaxError || /Request is too large|spreadsheet|Select a|Import at most|empty/.test(error.message) ? 400 : 500, { error: error instanceof SyntaxError ? 'Invalid JSON.' : /Request is too large|spreadsheet|Select a|Import at most|empty/.test(error.message) ? error.message : 'Request could not be completed.' });
+    if (!(error instanceof SyntaxError) && !/Request is too large|Password is too long|spreadsheet|Select a|Import at most|empty/.test(error.message)) console.error(`Request failed: ${req.method} ${route}\n`, error.stack || error);
+    return send(res, error instanceof SyntaxError || /Request is too large|Password is too long|spreadsheet|Select a|Import at most|empty/.test(error.message) ? 400 : 500, { error: error instanceof SyntaxError ? 'Invalid JSON.' : /Request is too large|Password is too long|spreadsheet|Select a|Import at most|empty/.test(error.message) ? error.message : 'Request could not be completed.' });
   }
 });
+server.headersTimeout = 15_000;
+server.requestTimeout = 60_000;
+server.keepAliveTimeout = 5_000;
+server.timeout = 120_000;
+server.maxRequestsPerSocket = 100;
 server.on('error', (error) => {
   if (error.code !== 'EADDRINUSE') throw error;
   console.error(`\nPort ${port} is already in use, most likely by an older copy of this API that is still running.`);

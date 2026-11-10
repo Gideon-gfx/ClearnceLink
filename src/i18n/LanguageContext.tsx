@@ -5,6 +5,10 @@ import { DEFAULT_LANGUAGE, LANGUAGES } from './languages';
 import { translations } from './translations';
 
 const STORAGE_KEY = 'clearancelink_language';
+const previousCountryChoices: Record<string, string> = {
+  'en-NG': 'pcm-NG', 'en-GH': 'ak-GH', 'en-KE': 'sw-KE', 'en-UG': 'lg-UG', 'en-ZA': 'zu-ZA', 'en-ZM': 'bem-ZM',
+  'fr-SN': 'wo-SN', 'fr-CI': 'dyu-CI', 'fr-CM': 'wes-CM', 'fr-CD': 'ln-CD',
+};
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 const LanguageContext = createContext<{ lang: string; setLang: (code: string) => void; t: Translate }>({
@@ -16,7 +20,7 @@ export function LanguageProvider({ children }: { children: any }) {
   const [lang, setLangState] = useState(DEFAULT_LANGUAGE);
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    SecureStore.getItemAsync(STORAGE_KEY).then((saved) => { if (saved && LANGUAGES.some((item) => item.code === saved)) setLangState(saved); }).catch(() => {});
+    SecureStore.getItemAsync(STORAGE_KEY).then((saved) => { const code = previousCountryChoices[saved || ''] || saved; if (code && LANGUAGES.some((item) => item.code === code)) setLangState(code); }).catch(() => {});
   }, []);
   const setLang = useCallback((code: string) => {
     if (!LANGUAGES.some((item) => item.code === code)) return;

@@ -1,6 +1,7 @@
 // Text for each language. English is the source: a key that is missing in another language falls back to English.
 // {name} placeholders are filled in by t('key', { name: value }).
 import { phrases } from './phrases';
+import { africanTranslations } from './africanTranslations';
 
 type Dictionary = Record<string, string>;
 
@@ -159,3 +160,4 @@ const hi: Dictionary = {
 // Each language: its phrases (keyed by the English text on screen) plus the short named keys above.
 const withPhrases = (code: string, named: Dictionary): Dictionary => ({ ...(phrases[code] || {}), ...named });
 export const translations: Record<string, Dictionary> = { en, fr: withPhrases('fr', fr), es: withPhrases('es', es), it: withPhrases('it', it), pt: withPhrases('pt', pt), de: withPhrases('de', de), zh: withPhrases('zh', zh), hi: withPhrases('hi', hi) };
+for (const [code, localized] of Object.entries(africanTranslations)) translations[code] = { ...(code.startsWith('pt-') ? translations.pt : translations.en), ...localized };

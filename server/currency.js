@@ -32,9 +32,10 @@ async function rates() {
   return cache ? cache.rates : null; // a stale rate is better than none
 }
 
-function currencyForCountry(countryName) {
+async function currencyForCountry(countryName) {
   const code = countryList.getCode(String(countryName || '').trim());
-  return CURRENCY_BY_COUNTRY[code] || 'USD';
+  const { default: countryToCurrency } = await import('country-to-currency');
+  return CURRENCY_BY_COUNTRY[code] || countryToCurrency[code] || 'USD';
 }
 
 // Rounds a converted price to a tidy amount so people see, and pay, "₦59,800" rather than "₦59,812.43".
@@ -47,7 +48,7 @@ function tidy(amount) {
 
 // Everything needed to show and charge prices for one institution.
 async function quoteFor(countryName) {
-  const wanted = currencyForCountry(countryName);
+  const wanted = await currencyForCountry(countryName);
   const table = wanted === 'USD' ? { USD: 1 } : await rates();
   const rate = table?.[wanted];
   const canCharge = chargeable();

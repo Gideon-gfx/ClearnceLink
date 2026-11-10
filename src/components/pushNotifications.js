@@ -20,9 +20,10 @@ export function usePushNotifications(session) {
         const Notifications = await import('expo-notifications');
         Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }) });
         if (Platform.OS === 'android') await Notifications.setNotificationChannelAsync('clearance-updates', { name: 'Clearance updates', importance: Notifications.AndroidImportance.HIGH, sound: 'default' });
+        const allowsPush = (permission) => permission.granted || (Platform.OS === 'ios' && permission.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL);
         const existing = await Notifications.getPermissionsAsync();
-        const permission = existing.granted ? existing : await Notifications.requestPermissionsAsync();
-        if (!permission.granted || !live) return;
+        const permission = allowsPush(existing) ? existing : await Notifications.requestPermissionsAsync();
+        if (!allowsPush(permission) || !live) return;
         const pushToken = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
         if (!live) return;
         await apiRequest('/api/push-tokens', { pushToken, platform: Platform.OS }, token, 'POST');

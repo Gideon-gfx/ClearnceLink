@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { ActivityIndicator, Image, Modal } from 'react-native';
-import { apiBaseUrl } from '../api';
+import { apiBaseUrl, apiRequest } from '../api';
 import ErrorBanner from '../components/ErrorBanner';
 import { useSignOut } from '../components/useSignOut';
 import { useBugReport } from '../components/BugReportShake';
@@ -18,7 +18,7 @@ async function toBase64(uri) {
   return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(String(reader.result).split(',')[1]); reader.onerror = () => reject(new Error('Could not read the selected image.')); reader.readAsDataURL(blob); });
 }
 
-export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onNavigate, onSignOut, onBack }) {
+export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onBillingChange, onNavigate, onSignOut, onBack }) {
   const { t } = useLanguage();
   const { open: openBugReport } = useBugReport();
   const logoUri = useLogoUri(logoUrl, token);
@@ -26,6 +26,19 @@ export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onNavi
   const [viewing, setViewing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
+  const [billingDialog, setBillingDialog] = useState(false);
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingError, setBillingError] = useState('');
+  const switchToStudentPayments = async () => {
+    if (billingBusy) return;
+    setBillingBusy(true); setBillingError('');
+    try {
+      const result = await apiRequest('/api/institution-payment/student-pay', {}, token);
+      onBillingChange(result.user);
+      setBillingDialog(false);
+    } catch (cause) { setBillingError(cause.message); }
+    finally { setBillingBusy(false); }
+  };
   const replaceLogo = async () => {
     setMenu(false); setLogoError('');
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.85 });
@@ -70,11 +83,29 @@ export default function MoreScreen({ user, token, logoUrl, onLogoChanged, onNavi
       </Card>
     </Pressable>
     <ErrorBanner message={logoError} />
+    <Heading>Billing</Heading>
+    <Pressable accessibilityRole="button" accessibilityLabel={user?.plan === 'student-pay' ? 'View student payment billing' : 'Switch to student payments'} onPress={() => user?.plan === 'student-pay' ? onNavigate('plans') : setBillingDialog(true)} style={{ minHeight: 70, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, borderWidth: 2, borderColor: C.border, borderRadius: 14, backgroundColor: '#F8F5FF' }}>
+      <View style={{ width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: C.purple }}><Ionicons name="people-outline" size={22} color="white" /></View>
+      <View style={{ flex: 1, marginLeft: 13 }}><Text style={{ color: C.ink, fontSize: 15, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{user?.plan === 'student-pay' ? 'Students pay' : 'Switch to student payments'}</Text><Text style={{ color: C.muted, fontSize: 12, marginTop: 3 }}>{user?.plan === 'student-pay' ? `Students pay $${user?.studentActivationUsd || 1} on activation` : 'Your institution pays $0; new students pay $2'}</Text></View>
+      <Ionicons name="chevron-forward" size={21} color={C.purple} />
+    </Pressable>
     <Heading>{t("Institution Controls")}</Heading>
     <Pressable onPress={openBugReport} style={{ height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 8, borderWidth: 1.5, borderColor: C.border, borderRadius: 14, backgroundColor: 'white' }}><Ionicons name="bug-outline" size={23} color={C.purple} /><Text style={{ flex: 1, marginLeft: 13, color: C.ink, fontSize: 15, fontFamily: 'Inter_600SemiBold' }}>{t("Report a bug")}</Text><Ionicons name="chevron-forward" size={19} color={C.muted} /></Pressable>
     {actions.map(([label, icon, target]) => <Pressable key={target} onPress={() => onNavigate(target)} style={{ height: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, borderWidth: 2, borderColor: C.border, borderRadius: 14, backgroundColor: 'white' }}><Ionicons name={icon} size={24} color={C.purple} /><Text style={{ flex: 1, marginLeft: 14, color: C.ink, fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{t(label)}</Text><Ionicons name="chevron-forward" size={21} color={C.muted} /></Pressable>)}
     <Pressable accessibilityRole="button" onPress={askSignOut} style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 20, borderWidth: 2, borderColor: '#FFC4CF', borderRadius: 14, backgroundColor: '#FFF5F7' }}>{signingOut ? <ActivityIndicator color={C.red} /> : <Ionicons name="log-out-outline" size={22} color={C.red} />}<Text style={{ marginLeft: 8, color: C.red, fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>{signingOut ? t('signingOut') : t('signOut')}</Text></Pressable>{signOutSheet}
   </ScrollView>
+  <Modal transparent visible={billingDialog} animationType="slide" onRequestClose={() => setBillingDialog(false)}>
+    <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(23,19,43,0.55)' }}>
+      <View style={{ paddingHorizontal: 22, paddingTop: 24, paddingBottom: 32, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: 'white' }}>
+        <Text style={{ color: C.ink, fontSize: 21, fontFamily: 'Inter_800ExtraBold', fontWeight: '800' }}>Switch to student payments?</Text>
+        <Text style={{ color: C.muted, fontSize: 14, lineHeight: 21, marginTop: 12 }}>Your institution will pay $0 from now on. Students who have not activated their accounts will see a one-time $2 bill, converted to the checkout currency, before creating a password.</Text>
+        <Text style={{ color: C.muted, fontSize: 13, lineHeight: 19, marginTop: 10 }}>The change starts immediately. Any unused time on your current institution plan is not refunded. Already activated students will not be charged again.</Text>
+        <ErrorBanner message={billingError} />
+        <Pressable accessibilityRole="button" disabled={billingBusy} onPress={switchToStudentPayments} style={{ height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 20, backgroundColor: C.purple }}>{billingBusy ? <ActivityIndicator color="white" /> : <Text style={{ color: 'white', fontSize: 15, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>Switch to student payments</Text>}</Pressable>
+        <Pressable accessibilityRole="button" disabled={billingBusy} onPress={() => { setBillingDialog(false); setBillingError(''); }} style={{ height: 48, alignItems: 'center', justifyContent: 'center', marginTop: 6 }}><Text style={{ color: C.muted, fontSize: 15, fontFamily: 'Inter_700Bold', fontWeight: '700' }}>Cancel</Text></Pressable>
+      </View>
+    </View>
+  </Modal>
   <Modal transparent visible={menu} animationType="fade" onRequestClose={() => setMenu(false)}>
     <Pressable style={{ flex: 1, backgroundColor: 'rgba(23,19,43,0.5)', justifyContent: 'flex-end' }} onPress={() => setMenu(false)}>
       <Pressable style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28 }} onPress={() => {}}>

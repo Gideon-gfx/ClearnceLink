@@ -24,6 +24,7 @@ const isExpired = (user) => user.status === 'verified' && Boolean(expiryOf(user)
 
 // How many students / staff the institution may hold on its current plan.
 function limitsFor(user) {
+  if (user.plan === 'student-pay') return { students: Infinity, staff: Infinity };
   if (user.plan === 'trial') return { students: trialSettings().students, staff: Infinity };
   const tier = plans().find((item) => item.id === user.plan);
   return { students: tier ? tier.students : Infinity, staff: Infinity };
