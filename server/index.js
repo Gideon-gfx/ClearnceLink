@@ -3,11 +3,13 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { promisify } = require('node:util');
-const { sendOtpEmail, sendBugReportEmail } = require('./mailer');
+const { sendOtpEmail, sendBugReportEmail, sendEmailChangeNotice } = require('./mailer');
 const { expiryOf, isExpired } = require('./subscription');
 const { configurePush, registerPushToken, removePushToken } = require('./push');
 
 const { openStore } = require('./store');
+const { createPlatformAdmin } = require('./platformAdmin');
+const { seedDemoAccounts, isDemoWriteRequest } = require('./demo');
 
 const port = Number(process.env.PORT || process.env.API_PORT || 4000);
 const scrypt = promisify(crypto.scrypt);
@@ -61,7 +63,7 @@ async function verifyPassword(password, stored) {
 }
 function publicUser(user) {
   const subscription = user.role === 'institution' ? { plan: user.plan || null, expiresAt: expiryOf(user), expired: isExpired(user), studentActivationUsd: user.plan === 'student-pay' ? (user.studentActivationUsd === 2 || String(user.country || '').trim().toLowerCase() !== 'nigeria' ? 2 : 1) : null } : {};
-  return { id: user.id, role: user.role, name: user.name, email: user.email, status: user.status, institutionName: user.institutionName, hasLogo: Boolean(user.attachments?.logo), ...subscription };
+  return { id: user.id, role: user.role, name: user.name, email: user.email, status: user.status, institutionName: user.institutionName, hasLogo: Boolean(user.attachments?.logo), isDemo: Boolean(user.isDemo), ...subscription };
 }
 async function readJson(req, limit = 100_000) {
   if (req._jsonBody !== undefined) {
@@ -89,8 +91,15 @@ configurePush(data, save);
 console.log(`Storage: ${store.backend === 'mongodb' ? 'MongoDB' : 'local JSON file'}, files: ${store.filesBackend === 'cloudinary' ? 'Cloudinary' : store.backend === 'mongodb' ? 'MongoDB (GridFS)' : 'local folder'}`);
 const handleStudent = require('./student').createHandler({ data, save, send, readJson, hashPassword, publicUser, files, isProduction: process.env.NODE_ENV === 'production' });
 const handleInstitution = require('./institution').createHandler({ data, save, send, readJson, files });
+if (process.env.DEMO_ACCOUNT_PASSWORD) {
+  await seedDemoAccounts({ data, save, hashPassword, verifyPassword, password: process.env.DEMO_ACCOUNT_PASSWORD });
+  console.log('Read-only app-store demo accounts are enabled.');
+} else {
+  console.log('Demo accounts are disabled; set DEMO_ACCOUNT_PASSWORD to enable them.');
+}
 const handlePayments = require('./payments').createHandler({ data, save, send, readJson, publicUser });
 const handleStaff = require('./staff').createHandler({ data, save, send, readJson, hashPassword, publicUser, files, studentCore: handleStudent.core, manageStudents: handleInstitution });
+const platformAdmin = createPlatformAdmin({ data, save, send, readJson, hashPassword, verifyPassword, sendOtpEmail, sendEmailChangeNotice });
 
 require('./reminders').start({ data, save });
 
@@ -100,6 +109,11 @@ const sensitiveRoutes = {
   '/api/auth/password/forgot': { ip: 120, actor: 5, field: 'email' },
   '/api/auth/password/verify': { ip: 300, actor: 12, field: 'email' },
   '/api/auth/password/reset': { ip: 120, actor: 10, field: 'email' },
+  '/api/platform-admin/setup/request': { ip: 10, actor: 5, field: 'email' },
+  '/api/platform-admin/setup/complete': { ip: 30, actor: 10, field: 'email' },
+  '/api/platform-admin/login/verify': { ip: 60 },
+  '/api/platform-admin/email-change/request': { ip: 20 },
+  '/api/platform-admin/email-change/confirm': { ip: 30 },
   '/api/student/access': { ip: 120, actor: 5, field: 'clearanceId' },
   '/api/student/verify': { ip: 300, actor: 12, field: 'clearanceId' },
   '/api/staff/access': { ip: 120, actor: 5, field: 'accessId' },
@@ -148,6 +162,9 @@ const server = http.createServer({ maxHeaderSize: 8192 }, async (req, res) => {
       if (count > maxRequestsPerMinute) { res.setHeader('Retry-After', String(Math.ceil((60_000 - Date.now() % 60_000) / 1000))); return send(res, 429, { error: 'Too many requests. Please try again shortly.' }); }
     }
     if (!await checkSensitiveLimit(req, res, route, address)) return;
+    if (isDemoWriteRequest(data, req)) {
+      return send(res, 403, { error: 'This app-store demo is read-only.' });
+    }
     if (route === '/api/push-tokens' && ['POST', 'DELETE'].includes(req.method)) {
       const token = String(req.headers.authorization || '').replace(/^Bearer /, '');
       const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -188,6 +205,7 @@ const server = http.createServer({ maxHeaderSize: 8192 }, async (req, res) => {
       save();
       return send(res, 200, { ok: true, institutionName: account.institutionName, status: account.status });
     }
+    if (await platformAdmin.handle(req, res, route)) return;
     if (await handleStudent(req, res, route)) return;
     if (await handleStaff(req, res, route)) return;
     if (await handlePayments(req, res, route)) return;
@@ -265,6 +283,7 @@ const server = http.createServer({ maxHeaderSize: 8192 }, async (req, res) => {
     }
     if (route === '/api/auth/login' && req.method === 'POST') {
       const input = await readJson(req);
+      if (await platformAdmin.handleLogin(req, res, input)) return;
       const user = data.users.find((item) => item.email === normalizeEmail(input.email) && item.role === input.role);
       if (!user || !await verifyPassword(String(input.password || ''), user.passwordHash)) return send(res, 401, { error: 'Email or password is incorrect.' });
       if (user.role === 'staff' && data.staff?.find((item) => item.id === user.staffId)?.disabled) return send(res, 403, { error: 'This staff account is disabled.' });
@@ -276,6 +295,8 @@ const server = http.createServer({ maxHeaderSize: 8192 }, async (req, res) => {
     }
     if (route === '/api/auth/me' && req.method === 'GET') {
       const token = String(req.headers.authorization || '').replace(/^Bearer /, '');
+      const admin = platformAdmin.handleAuthMe(token);
+      if (admin) return send(res, 200, { user: admin });
       const session = data.sessions.find((item) => item.tokenHash === crypto.createHash('sha256').update(token).digest('hex') && item.expiresAt > Date.now());
       const user = session && data.users.find((item) => item.id === session.userId);
       return user ? send(res, 200, { user: publicUser(user) }) : send(res, 401, { error: 'Session expired.' });

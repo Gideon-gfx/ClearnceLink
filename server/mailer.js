@@ -364,6 +364,18 @@ async function sendOtpEmail(to, name, code, purpose = 'activate your ClearanceLi
   });
 }
 
+async function sendEmailChangeNotice(to, name, newEmail) {
+  await deliver(to, {
+    subject: 'A change to your ClearanceLink account email was requested',
+    title: 'Email change requested',
+    preheader: 'A platform administrator requested an email change for your account.',
+    greeting: `Hi ${firstName(name)},`,
+    paragraphs: [`A platform administrator requested changing your ClearanceLink account email to ${newEmail}. The change will only take effect after the new address confirms its verification code.`],
+    sections: [],
+    closing: 'If you did not expect this request, contact ClearanceLink support.',
+  });
+}
+
 // `details` (institutions only): { plan: 'trial' | 'paid', days, students, endsAt, reminderOn, price, planName }
 async function sendWelcomeEmail(kind, to, name, institutionName, details) {
   await deliver(to, welcomeContent(kind, name, institutionName, details));
@@ -406,4 +418,4 @@ async function sendBugReportEmail(report) {
   });
 }
 
-module.exports = { sendPaymentEmail, sendOtpEmail, sendAccessIdEmail, sendWelcomeEmail, sendTrialReminderEmail, sendBugReportEmail, welcomeContent, renderEmail };
+module.exports = { sendPaymentEmail, sendOtpEmail, sendAccessIdEmail, sendWelcomeEmail, sendTrialReminderEmail, sendBugReportEmail, sendEmailChangeNotice, welcomeContent, renderEmail };

@@ -19,11 +19,12 @@ function plans() {
 const subscriptionDays = () => Math.max(1, Math.floor(num(process.env.SUBSCRIPTION_DAYS, 365)));
 
 // When the current trial / subscription ends (ISO string), or null if none.
-const expiryOf = (user) => (user.plan === 'trial' ? user.trialEndsAt : user.subscriptionEndsAt) || null;
-const isExpired = (user) => user.status === 'verified' && Boolean(expiryOf(user)) && Date.parse(expiryOf(user)) < Date.now();
+const expiryOf = (user) => user.adminAccess?.active ? null : (user.plan === 'trial' ? user.trialEndsAt : user.subscriptionEndsAt) || null;
+const isExpired = (user) => !user.adminAccess?.active && user.status === 'verified' && Boolean(expiryOf(user)) && Date.parse(expiryOf(user)) < Date.now();
 
 // How many students / staff the institution may hold on its current plan.
 function limitsFor(user) {
+  if (user.adminAccess?.active || user.plan === 'admin-access') return { students: trialSettings().students, staff: Infinity };
   if (user.plan === 'student-pay') return { students: Infinity, staff: Infinity };
   if (user.plan === 'trial') return { students: trialSettings().students, staff: Infinity };
   const tier = plans().find((item) => item.id === user.plan);

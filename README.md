@@ -35,3 +35,11 @@ The import screen accepts `.xlsx` or `.csv` files up to 10 MB and offers a match
 The API stores development data in `server/data/auth.json` and uploaded files in `server/data/` (ignored by Git). Email delivery uses either `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM`, or `GMAIL_USER` and `GMAIL_APP_PASSWORD`. Without email setup, approved IDs remain pending and the send screen reports the setup error.
 
 Password reset codes are shown inside the app in local development. Configure email delivery and production storage before a public deployment.
+
+## Platform administrator
+
+Set `PLATFORM_ADMIN_EMAIL` in the API server's private environment to the one owner address. The owner can use that email from any of the three login portals; the server routes it to the platform-admin account and requires an email OTP after password sign-in. On first sign-in, choose **First-time platform admin setup** to verify the configured inbox and create the password. Never put the admin password in the app, repository, or EAS public variables. Demo/student/staff/institution users do not receive platform-admin permissions.
+
+For app-store review, optionally set `DEMO_ACCOUNT_PASSWORD` in the API server's private environment. On startup, the API creates three fictional, read-only accounts: `demo.institution@clearancelink.app`, `demo.student@clearancelink.app`, and `demo.staff@clearancelink.app`. All use the configured demo password. Their sample records are isolated from real institutions and cannot access platform-admin routes or modify data. Leave the variable unset to disable demo accounts.
+
+Platform-admin API actions include cross-institution account search and edits, staff officer-scope management, manually revocable institution dashboard access without payment, OTP-confirmed account email changes, and error-report review. Changes are recorded in the admin audit log. Configure email delivery on the API before initial setup. Biometric unlock is optional on supported iOS/Android devices and protects the remembered session token in secure storage; it does not replace the server password and OTP.

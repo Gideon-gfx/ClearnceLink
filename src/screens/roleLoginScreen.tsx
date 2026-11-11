@@ -12,16 +12,29 @@ import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
-import { Animated, Easing, Image, Keyboard, LayoutAnimation, Platform, Pressable, ScrollView, StatusBar, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, Easing, Image, Keyboard, LayoutAnimation, Platform, Pressable, ScrollView, StatusBar, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Field, PrimaryButton } from '../components/Shared';
 import { apiRequest } from '../api';
 import { clearRememberedSession, saveRememberedSession } from '../components/rememberedSession';
 
-export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin }) {
+type LoginMode = 'student' | 'staff' | 'institution';
+type LoginSession = { token: string; user: { role: string; email: string } };
+type RoleLoginProps = { mode: LoginMode; onBack: () => void; onRegister: () => void; onForgot: () => void; onLogin: (result: LoginSession) => void };
+const errorMessage = (cause: unknown) => cause instanceof Error ? cause.message : 'Something went wrong.';
+
+export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin }: RoleLoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
+  const [useBiometrics, setUseBiometrics] = useState(false);
+  const [adminChallenge, setAdminChallenge] = useState('');
+  const [adminCode, setAdminCode] = useState('');
+  const [setupMode, setSetupMode] = useState(false);
+  const [setupSent, setSetupSent] = useState(false);
+  const [setupCode, setSetupCode] = useState('');
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const backOffset = useRef(new Animated.Value(0)).current;
@@ -45,17 +58,51 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
   const leftRise = 12 * curveScale;
   const waveHeight = 54 * curveScale;
   const goBackAnimated = () => Animated.timing(backOffset, { toValue: width, duration: 260, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }).start(({ finished }) => { if (finished) onBack(); });
+  const finishLogin = async (result) => {
+    if (remember) {
+      const saved = await saveRememberedSession(result, useBiometrics);
+      if (useBiometrics && saved === false) Alert.alert('Biometric unlock unavailable', 'You can still sign in, but this device could not enable biometric unlock.');
+    }
+    else await clearRememberedSession();
+    onLogin(result);
+  };
   const submit = async () => {
+    if (adminChallenge) {
+      if (!adminCode.trim()) { setError('Enter the email verification code.'); return; }
+      setError('');
+      setBusy(true);
+      try { await finishLogin(await apiRequest('/api/platform-admin/login/verify', { challengeId: adminChallenge, code: adminCode.trim() })); }
+      catch (cause) { setError(t(errorMessage(cause))); }
+      finally { setBusy(false); }
+      return;
+    }
     if (!email.trim() || !password) { setError(t('errEnterBoth')); return; }
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setError(t('errEmail')); return; }
     setError('');
     setBusy(true);
     try {
       const result = await apiRequest('/api/auth/login', { role: mode, email: email.trim(), password });
-      if (remember) await saveRememberedSession(result); else await clearRememberedSession();
-      onLogin(result);
+      if (result.platformAdminOtpRequired) { setAdminChallenge(result.challengeId); setError('A sign-in code was sent to the platform admin email.'); return; }
+      if (result.platformAdminSetupRequired) { setSetupMode(true); setError('Set up the platform admin password using the admin email OTP.'); return; }
+      await finishLogin(result);
     }
-    catch (cause) { setError(t(cause.message)); }
+    catch (cause) { setError(t(errorMessage(cause))); }
+    finally { setBusy(false); }
+  };
+  const requestAdminSetup = async () => {
+    setError('');
+    setBusy(true);
+    try { await apiRequest('/api/platform-admin/setup/request', { email: email.trim() }); setSetupSent(true); setError('A setup code was sent if this is the configured platform admin email.'); }
+    catch (cause) { setError(t(errorMessage(cause))); }
+    finally { setBusy(false); }
+  };
+  const completeAdminSetup = async () => {
+    if (!/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(newAdminPassword)) { setError('Password needs 8 characters, an uppercase letter, a number and a symbol.'); return; }
+    if (newAdminPassword !== confirmAdminPassword) { setError('Passwords do not match.'); return; }
+    setError('');
+    setBusy(true);
+    try { await finishLogin(await apiRequest('/api/platform-admin/setup/complete', { email: email.trim(), code: setupCode.trim(), password: newAdminPassword })); }
+    catch (cause) { setError(t(errorMessage(cause))); }
     finally { setBusy(false); }
   };
   return (
@@ -116,22 +163,34 @@ export function RoleLoginScreen({ mode, onBack, onRegister, onForgot, onLogin })
         <Text style={{ marginTop: 2, textAlign: 'center', fontSize: 22, color: '#171548', fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{mode === 'institution' ? t('loginInstitution') : mode === 'staff' ? t('loginStaff') : t('loginStudent')}</Text>
         <Text style={{ marginTop: 7, marginBottom: 22, textAlign: 'center', fontSize: 12, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_400Regular' : undefined }}>{mode === 'institution' ? t('loginSubInstitution') : mode === 'staff' ? t('loginSubStaff') : t('loginSubStudent')}</Text>
         <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label={mode === 'institution' ? t('workEmail') : t('email')} value={email} onChangeText={setEmail} placeholder="name@institution.edu" keyboardType="email-address" icon="mail-outline" /></View>
-        <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label={t('password')} value={password} onChangeText={setPassword} placeholder={t('enterPassword')} secureTextEntry icon="lock-closed-outline" /></View>
-        <View className="mb-[32px] mt-0.5 flex-row items-center justify-between">
+        {adminChallenge ? (
+          <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label="Email verification code" value={adminCode} onChangeText={setAdminCode} placeholder="6-digit code" keyboardType="number-pad" icon="key-outline" /></View>
+        ) : setupMode ? (
+          <>
+            {setupSent ? <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label="Email verification code" value={setupCode} onChangeText={setSetupCode} placeholder="6-digit code" keyboardType="number-pad" icon="key-outline" /></View> : null}
+            {setupSent ? <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label="New admin password" value={newAdminPassword} onChangeText={setNewAdminPassword} placeholder="Create a strong password" secureTextEntry icon="lock-closed-outline" /></View> : null}
+            {setupSent ? <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label="Confirm new password" value={confirmAdminPassword} onChangeText={setConfirmAdminPassword} placeholder="Enter password again" secureTextEntry icon="lock-closed-outline" /></View> : null}
+          </>
+        ) : <View style={{ marginBottom: 12 }}><Field login error={Boolean(error)} label={t('password')} value={password} onChangeText={setPassword} placeholder={t('enterPassword')} secureTextEntry icon="lock-closed-outline" /></View>}
+        {!adminChallenge && !setupMode ? <View className="mb-[32px] mt-0.5 flex-row items-center justify-between">
           <Pressable onPress={() => setRemember(!remember)} className="flex-row items-center">
             <Ionicons name={remember ? 'checkbox' : 'square-outline'} size={16} color="#6819d4" style={{ marginRight: 6 }} />
             <Text style={{ fontSize: 11, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_500Medium' : undefined }}>{t('rememberMe')}</Text>
           </Pressable>
           <TextLink onPress={onForgot} color="#6318d1" style={{ fontSize: 13, fontWeight: undefined, fontFamily: fontsLoaded ? 'Inter_600SemiBold' : undefined }}>{t('forgotPassword')}</TextLink>
-        </View>
+        </View> : null}
+        {!adminChallenge && !setupMode && remember && Platform.OS !== 'web' ? <Pressable onPress={() => setUseBiometrics(!useBiometrics)} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 18 }}>
+          <Ionicons name={useBiometrics ? 'checkbox' : 'square-outline'} size={16} color="#6819d4" style={{ marginRight: 6 }} />
+          <Text style={{ fontSize: 11, color: '#68689c' }}>Unlock next time with device biometrics</Text>
+        </Pressable> : null}
         <ErrorBanner message={error} />
-        <PrimaryButton title={busy ? t('loggingIn') : t('loginButton')} onPress={busy ? undefined : submit} />
-        <View style={{ marginTop: 25, alignItems: 'center', gap: 4 }}>
+        <PrimaryButton title={busy ? t('loggingIn') : adminChallenge ? 'Verify and sign in' : setupMode ? (setupSent ? 'Set admin password' : 'Send admin setup code') : t('loginButton')} onPress={busy ? undefined : adminChallenge ? submit : setupMode ? (setupSent ? completeAdminSetup : requestAdminSetup) : submit} />
+        {!adminChallenge && !setupMode ? <TextLink onPress={() => { setSetupMode(true); setError('Enter the configured platform admin email to set its password.'); }} color="#6115d0" style={{ alignSelf: 'center', marginTop: 15 }}>First-time platform admin setup</TextLink> : null}
+        {!adminChallenge && !setupMode ? <View style={{ marginTop: 25, alignItems: 'center', gap: 4 }}>
           <Text style={{ fontSize: 14, color: '#68689c', fontFamily: fontsLoaded ? 'Inter_400Regular' : undefined }}>{t('noAccount')}</Text>
           <TextLink onPress={onRegister} color="#6115d0" style={{ fontSize: 14, fontFamily: fontsLoaded ? 'Inter_700Bold' : undefined, fontWeight: fontsLoaded ? undefined : '700' }}>{mode === 'institution' ? t('registerInstitution') : mode === 'staff' ? t('createStaffAccount') : t('createStudentAccount')}</TextLink>
-        </View>
+        </View> : null}
       </KeyboardScreen>
     </SafeAreaView></Animated.View>
   );
 }
-

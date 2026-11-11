@@ -23,7 +23,12 @@
     },
     "plugins": [
       "expo-video",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Allow ClearanceLink to use Face ID to unlock your saved sign-in."
+        }
+      ],
       [
         "expo-notifications",
         {
