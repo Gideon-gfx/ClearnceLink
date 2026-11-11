@@ -27,7 +27,7 @@ const plans = [
   ['Pro', 'Up to 10,000 active students', 120, ['Everything in Standard', 'Advanced reporting', 'Priority support']],
   ['Enterprise', '10,000+ active students', 250, ['Everything in Pro', 'Institution-wide scale', 'Dedicated onboarding']],
 ]
-const contact = { email: import.meta.env.VITE_CONTACT_EMAIL || 'thegideons.2.5.1@gmail.com', phone: import.meta.env.VITE_CONTACT_PHONE || '', office: import.meta.env.VITE_CONTACT_OFFICE || '' }
+const contact = { email: import.meta.env.VITE_CONTACT_EMAIL || 'thegideons.2.5.1@gmail.com', phone: import.meta.env.VITE_CONTACT_PHONE || '+2347075987826', office: import.meta.env.VITE_CONTACT_OFFICE || 'Oko-Afo Badagry Lagos State, Nigeria' }
 
 function Brand({ compact = false }) { return <a className={`brand ${compact ? 'brand-compact' : ''}`} href="/" aria-label="ClearanceLink home"><span className="brand-mark"><img src="/logo-transparent.png" alt="" /></span><span className="brand-word"><img src="/logo-transparent.png" alt="" /></span></a> }
 function Socials() { return <div className="socials" aria-label="Social media">{['facebook','x','instagram','linkedin','youtube'].map(name => <span key={name} aria-label={name}><img src={`/brands/${name}.svg`} alt={name} /></span>)}</div> }
