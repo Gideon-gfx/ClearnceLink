@@ -8,6 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "vite --host 0.0.0.0",
+    "build": "vite build",
     "web:build": "vite build",
     "expo:web": "expo start --web",
     "api": "node --env-file-if-exists=.env server/index.js"
